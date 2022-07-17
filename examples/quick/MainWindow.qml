@@ -22,11 +22,10 @@
  * SOFTWARE.
  */
 
-import QtQuick 2.0
-import QtQuick.Window 2.0
-import QtQuick.Controls 2.0
-import org.wangwenx190.FramelessHelper 1.0
-import Demo 1.0
+import QtQuick
+import QtQuick.Controls.Basic
+import org.wangwenx190.FramelessHelper
+import Demo
 
 FramelessWindow {
     id: window
@@ -34,8 +33,15 @@ FramelessWindow {
     width: 800
     height: 600
     title: qsTr("FramelessHelper demo application - Qt Quick")
-    color: (FramelessUtils.systemTheme === FramelessHelperConstants.Dark)
-            ? FramelessUtils.defaultSystemDarkColor : FramelessUtils.defaultSystemLightColor
+    color: {
+        if (FramelessHelper.blurBehindWindowEnabled) {
+            return Qt.color("transparent");
+        }
+        if (FramelessUtils.systemTheme === FramelessHelperConstants.Dark) {
+            return FramelessUtils.defaultSystemDarkColor;
+        }
+        return FramelessUtils.defaultSystemLightColor;
+    }
     onClosing: Settings.saveGeometry(window)
 
     FramelessHelper.onReady: {
@@ -43,7 +49,7 @@ FramelessWindow {
         // our window won't be draggable.
         FramelessHelper.titleBarItem = titleBar;
         // Make our own items visible to the hit test and on Windows, enable
-        // the snap layouts feature (available since Windows 11).
+        // the snap layout feature (available since Windows 11).
         FramelessHelper.setSystemButton(titleBar.minimizeButton, FramelessHelperConstants.Minimize);
         FramelessHelper.setSystemButton(titleBar.maximizeButton, FramelessHelperConstants.Maximize);
         FramelessHelper.setSystemButton(titleBar.closeButton, FramelessHelperConstants.Close);
@@ -68,13 +74,13 @@ FramelessWindow {
             pointSize: 70
             bold: true
         }
-        color: (FramelessUtils.systemTheme === FramelessHelperConstants.Dark) ? "white" : "black"
+        color: (FramelessUtils.systemTheme === FramelessHelperConstants.Dark) ? Qt.color("white") : Qt.color("black")
     }
 
     StandardTitleBar {
         id: titleBar
         anchors {
-            top: window.topBorderBottom // IMPORTANT!
+            top: window.topBorderBottom // VERY IMPORTANT!
             left: parent.left
             right: parent.right
         }

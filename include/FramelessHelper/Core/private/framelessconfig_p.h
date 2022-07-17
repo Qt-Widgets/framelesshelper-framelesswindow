@@ -26,6 +26,8 @@
 
 #include "framelesshelpercore_global.h"
 #include <QtCore/qobject.h>
+#include <QtCore/qvariant.h>
+#include <optional>
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
 
@@ -44,6 +46,23 @@ public:
 
     void set(const Global::Option option, const bool on = true);
     Q_NODISCARD bool isSet(const Global::Option option) const;
+
+    static void setLoadFromEnvironmentVariablesDisabled(const bool on = true);
+    static void setLoadFromConfigurationFileDisabled(const bool on = true);
+
+    Q_NODISCARD std::optional<QVariant> setInternal(const QString &key, const QVariant &value);
+    Q_NODISCARD std::optional<QVariant> getInternal(const QString &key) const;
+    template<typename T>
+    Q_NODISCARD std::optional<T> getInternal(const QString &key) const
+    {
+        const std::optional<QVariant> var = getInternal(key);
+        if (var.has_value()) {
+            return qvariant_cast<T>(var.value());
+        }
+        return std::nullopt;
+    }
 };
 
 FRAMELESSHELPER_END_NAMESPACE
+
+Q_DECLARE_METATYPE2(FRAMELESSHELPER_PREPEND_NAMESPACE(FramelessConfig))

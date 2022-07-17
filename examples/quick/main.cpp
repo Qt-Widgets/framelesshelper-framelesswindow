@@ -22,12 +22,21 @@
  * SOFTWARE.
  */
 
+#ifndef QMLTC_ENABLED
+#  define QMLTC_ENABLED 0 // We disable it for now, because currently (6.4) it can't process singletons yet.
+                          // There's some hope to get it supported in Qt 6.5
+#endif
+
 #include <QtGui/qguiapplication.h>
 #include <QtQml/qqmlapplicationengine.h>
 #include <QtQuick/qquickwindow.h>
 #include <QtQuickControls2/qquickstyle.h>
 #include <framelessquickmodule.h>
+#include <framelessconfig_p.h>
 #include "settings.h"
+#if QMLTC_ENABLED
+#  include <mainwindow.h>
+#endif
 
 FRAMELESSHELPER_USE_NAMESPACE
 
@@ -35,9 +44,12 @@ int main(int argc, char *argv[])
 {
     // Not necessary, but better call this function, before the construction
     // of any Q(Core|Gui)Application instances.
-    FramelessHelper::Core::initialize();
+    FramelessHelper::Quick::initialize();
 
     QGuiApplication application(argc, argv);
+
+    FramelessConfig::instance()->set(Global::Option::WindowUseRoundCorners);
+    FramelessConfig::instance()->set(Global::Option::EnableBlurBehindWindow);
 
     // Enable QtRHI debug output if not explicitly requested by the user.
     if (!qEnvironmentVariableIsSet("QSG_INFO")) {
@@ -60,7 +72,11 @@ int main(int argc, char *argv[])
     }
 
     QQmlApplicationEngine engine;
+#if !QMLTC_ENABLED
+    engine.addImportPath(FRAMELESSHELPER_STRING_LITERAL("../imports"));
+#endif
 
+#if (QT_VERSION < QT_VERSION_CHECK(6, 2, 0)) && !QMLTC_ENABLED
     // Don't forget to register our own custom QML types!
     FramelessHelper::Quick::registerTypes(&engine);
 
@@ -70,18 +86,31 @@ int main(int argc, char *argv[])
             Q_UNUSED(scriptEngine);
             return new Settings;
         });
+#endif
 
+#if !QMLTC_ENABLED
     // This line is not relevant to FramelessHelper, we change the default
     // Qt Quick Controls theme to "Basic" (Qt6) or "Default" (Qt5) just
     // because other themes will make our homemade system buttons look
     // not good. This line has nothing to do with FramelessHelper itself.
-#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+#  if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
     QQuickStyle::setStyle(FRAMELESSHELPER_STRING_LITERAL("Basic"));
-#else
+#  else
     QQuickStyle::setStyle(FRAMELESSHELPER_STRING_LITERAL("Default"));
+#  endif
 #endif
 
-    const QUrl mainUrl(FRAMELESSHELPER_STRING_LITERAL("qrc:///Demo/qml/MainWindow.qml"));
+#if !QMLTC_ENABLED
+    const QUrl mainUrl(FRAMELESSHELPER_STRING_LITERAL("qrc:///Demo/MainWindow.qml"));
+#endif
+
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 4, 0))
+    QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed, &application,
+        [](const QUrl &url){
+            qCritical() << "The QML engine failed to create component:" << url;
+            QCoreApplication::exit(-1);
+        }, Qt::QueuedConnection);
+#elif !QMLTC_ENABLED
     const QMetaObject::Connection connection = QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreated, &application,
         [&mainUrl, &connection](QObject *object, const QUrl &url) {
@@ -94,8 +123,16 @@ int main(int argc, char *argv[])
                 QCoreApplication::exit(-1);
             }
         }, Qt::QueuedConnection);
+#endif
 
+#if !QMLTC_ENABLED
     engine.load(mainUrl);
+#endif
+
+#if QMLTC_ENABLED
+    QScopedPointer<MainWindow> mainWindow(new MainWindow(&engine));
+    mainWindow->show();
+#endif
 
     return QCoreApplication::exec();
 }

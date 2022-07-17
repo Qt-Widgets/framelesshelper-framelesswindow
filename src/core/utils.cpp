@@ -23,6 +23,7 @@
  */
 
 #include "utils.h"
+#include <QtCore/qdebug.h>
 #include <QtGui/qwindow.h>
 #include <QtGui/qscreen.h>
 #include <QtGui/qguiapplication.h>
@@ -33,14 +34,29 @@
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
 
+Q_LOGGING_CATEGORY(lcUtilsCommon, "wangwenx190.framelesshelper.core.utils.common")
+#define INFO qCInfo(lcUtilsCommon)
+#define DEBUG qCDebug(lcUtilsCommon)
+#define WARNING qCWarning(lcUtilsCommon)
+#define CRITICAL qCCritical(lcUtilsCommon)
+
 using namespace Global;
 
-FRAMELESSHELPER_STRING_CONSTANT2(ChromeWindowIcon, "\ue756")
-FRAMELESSHELPER_STRING_CONSTANT2(ChromeHelpIcon, "\ue897")
-FRAMELESSHELPER_STRING_CONSTANT2(ChromeMinimizeIcon, "\ue921")
-FRAMELESSHELPER_STRING_CONSTANT2(ChromeMaximizeIcon, "\ue922")
-FRAMELESSHELPER_STRING_CONSTANT2(ChromeRestoreIcon, "\ue923")
-FRAMELESSHELPER_STRING_CONSTANT2(ChromeCloseIcon, "\ue8bb")
+struct FONT_ICON
+{
+    quint32 segoe = 0;
+    quint32 micon = 0;
+};
+
+static const QHash<int, FONT_ICON> g_fontIconsTable = {
+    {static_cast<int>(SystemButtonType::Unknown), {0x0000, 0x0000}},
+    {static_cast<int>(SystemButtonType::WindowIcon), {0xE756, 0xEB06}},
+    {static_cast<int>(SystemButtonType::Help), {0xE897, 0xEC04}},
+    {static_cast<int>(SystemButtonType::Minimize), {0xE921, 0xEAE0}},
+    {static_cast<int>(SystemButtonType::Maximize), {0xE922, 0xEADE}},
+    {static_cast<int>(SystemButtonType::Restore), {0xE923, 0xEAE2}},
+    {static_cast<int>(SystemButtonType::Close), {0xE8BB, 0xEADA}}
+};
 
 Qt::CursorShape Utils::calculateCursorShape(const QWindow *window, const QPoint &pos)
 {
@@ -113,24 +129,22 @@ Qt::Edges Utils::calculateWindowEdges(const QWindow *window, const QPoint &pos)
 
 QString Utils::getSystemButtonIconCode(const SystemButtonType button)
 {
-    switch (button) {
-    case SystemButtonType::Unknown:
-        Q_ASSERT(false);
-        break;
-    case SystemButtonType::WindowIcon:
-        return kChromeWindowIcon;
-    case SystemButtonType::Help:
-        return kChromeHelpIcon;
-    case SystemButtonType::Minimize:
-        return kChromeMinimizeIcon;
-    case SystemButtonType::Maximize:
-        return kChromeMaximizeIcon;
-    case SystemButtonType::Restore:
-        return kChromeRestoreIcon;
-    case SystemButtonType::Close:
-        return kChromeCloseIcon;
+    const auto index = static_cast<int>(button);
+    if (!g_fontIconsTable.contains(index)) {
+        WARNING << "FIXME: Add FONT_ICON value for button" << button;
+        return {};
     }
-    return {};
+    const FONT_ICON icon = g_fontIconsTable.value(index);
+#ifdef Q_OS_WINDOWS
+    // Windows 11: Segoe Fluent Icons (https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-fluent-icons-font)
+    // Windows 10: Segoe MDL2 Assets (https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font)
+    // Windows 7~8.1: Micon (http://xtoolkit.github.io/Micon/)
+    static const bool isWin10OrGreater = isWindowsVersionOrGreater(WindowsVersion::_10_1507);
+    if (isWin10OrGreater) {
+        return QChar(icon.segoe);
+    }
+#endif
+    return QChar(icon.micon);
 }
 
 QWindow *Utils::findWindow(const WId windowId)
@@ -203,6 +217,10 @@ bool Utils::isThemeChangeEvent(const QEvent * const event)
     if (!event) {
         return false;
     }
+    // QGuiApplication will only deliver theme change events to top level QWindow(QQuickWindow)s,
+    // QWidgets won't get such notifications, no matter whether it's top level widget or not.
+    // QEvent::ThemeChange: Send by the Windows QPA.
+    // QEvent::ApplicationPaletteChange: All other platforms (Linux & macOS).
     const QEvent::Type type = event->type();
     return ((type == QEvent::ThemeChange) || (type == QEvent::ApplicationPaletteChange));
 }
@@ -221,7 +239,7 @@ QColor Utils::calculateSystemButtonBackgroundColor(const SystemButtonType button
         }
         if (isTitleColor) {
 #ifdef Q_OS_WINDOWS
-            return getDwmColorizationColor();
+            return getDwmAccentColor();
 #endif
 #ifdef Q_OS_LINUX
             return getWmThemeColor();

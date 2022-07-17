@@ -25,6 +25,7 @@
 #pragma once
 
 #include <framelesshelpercore_global.h>
+#include <QtCore/qloggingcategory.h>
 
 #ifndef FRAMELESSHELPER_WIDGETS_API
 #  ifdef FRAMELESSHELPER_WIDGETS_STATIC
@@ -37,3 +38,15 @@
 #    endif
 #  endif
 #endif
+
+FRAMELESSHELPER_BEGIN_NAMESPACE
+
+Q_DECLARE_LOGGING_CATEGORY(lcWidgetsGlobal)
+
+namespace FramelessHelper::Widgets
+{
+FRAMELESSHELPER_WIDGETS_API void initialize();
+FRAMELESSHELPER_WIDGETS_API void uninitialize();
+} // namespace FramelessHelper::Widgets
+
+FRAMELESSHELPER_END_NAMESPACE

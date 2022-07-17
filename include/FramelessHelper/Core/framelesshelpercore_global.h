@@ -28,6 +28,7 @@
 #include <QtCore/qpoint.h>
 #include <QtCore/qsize.h>
 #include <QtCore/qobject.h>
+#include <QtCore/qloggingcategory.h>
 #include <QtGui/qcolor.h>
 #include <QtGui/qwindowdefs.h>
 #include <functional>
@@ -94,8 +95,20 @@ QT_END_NAMESPACE
 #  endif
 #endif
 
+#ifndef Q_DECLARE_METATYPE2
+#  if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+#    define Q_DECLARE_METATYPE2 Q_DECLARE_METATYPE
+#  else
+#    define Q_DECLARE_METATYPE2(Type)
+#  endif
+#endif
+
 #ifndef QUtf8String
 #  define QUtf8String(str) QString::fromUtf8(str)
+#endif
+
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 8, 0))
+  using namespace Qt::StringLiterals;
 #endif
 
 #ifndef FRAMELESSHELPER_BYTEARRAY_LITERAL
@@ -173,10 +186,10 @@ QT_END_NAMESPACE
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
 
-[[maybe_unused]] static constexpr const int FRAMELESSHELPER_VERSION_MAJOR = 2;
-[[maybe_unused]] static constexpr const int FRAMELESSHELPER_VERSION_MINOR = 1;
-[[maybe_unused]] static constexpr const int FRAMELESSHELPER_VERSION_PATCH = 1;
-[[maybe_unused]] static constexpr const int FRAMELESSHELPER_VERSION_TWEAK = 0;
+Q_DECLARE_LOGGING_CATEGORY(lcCoreGlobal)
+
+#include <framelesshelper.version>
+
 [[maybe_unused]] static constexpr const int FRAMELESSHELPER_VERSION =
       FRAMELESSHELPER_MAKE_VERSION(FRAMELESSHELPER_VERSION_MAJOR, FRAMELESSHELPER_VERSION_MINOR,
                                    FRAMELESSHELPER_VERSION_PATCH, FRAMELESSHELPER_VERSION_TWEAK);
@@ -215,9 +228,11 @@ enum class Option
     UseCrossPlatformQtImplementation = 0,
     ForceHideWindowFrameBorder = 1,
     ForceShowWindowFrameBorder = 2,
-    DisableWindowsSnapLayouts = 3,
+    DisableWindowsSnapLayout = 3,
     WindowUseRoundCorners = 4,
-    CenterWindowBeforeShow = 5
+    CenterWindowBeforeShow = 5,
+    EnableBlurBehindWindow = 6,
+    ForceNonNativeBackgroundBlur = 7
 };
 Q_ENUM_NS(Option)
 
@@ -241,14 +256,6 @@ enum class SystemButtonType
     Close = 5
 };
 Q_ENUM_NS(SystemButtonType)
-
-enum class ResourceType
-{
-    Image = 0,
-    Pixmap = 1,
-    Icon = 2
-};
-Q_ENUM_NS(ResourceType)
 
 enum class DwmColorizationArea
 {
@@ -307,7 +314,8 @@ enum class WindowsVersion
     _10_21H1 = 22,
     _10_21H2 = 23,
     _11_21H2 = 24,
-    _11_22H2 = 25
+    _11_22H2 = 25,
+    Latest = _11_22H2
 };
 Q_ENUM_NS(WindowsVersion)
 
@@ -319,6 +327,27 @@ enum class ApplicationType
 };
 Q_ENUM_NS(ApplicationType)
 
+enum class BlurMode
+{
+    Disable = 0, // Do not enable blur behind window
+    Default = 1, // Use platform default blur mode
+    Windows_Aero = 2, // Windows only, use the traditional DWM blur
+    Windows_Acrylic = 3, // Windows only, use the Acrylic blur
+    Windows_Mica = 4 // Windows only, use the Mica material
+};
+Q_ENUM_NS(BlurMode)
+
+enum class WallpaperAspectStyle
+{
+    Fill = 0, // Keep aspect ratio to fill, expand/crop if necessary.
+    Fit = 1, // Keep aspect ratio to fill, but don't expand/crop.
+    Stretch = 2, // Ignore aspect ratio to fill.
+    Tile = 3,
+    Center = 4,
+    Span = 5 // ???
+};
+Q_ENUM_NS(WallpaperAspectStyle)
+
 struct VersionNumber
 {
     int major = 0;
@@ -326,17 +355,17 @@ struct VersionNumber
     int patch = 0;
     int tweak = 0;
 
-    [[nodiscard]] friend bool operator==(const VersionNumber &lhs, const VersionNumber &rhs) noexcept
+    [[nodiscard]] friend constexpr bool operator==(const VersionNumber &lhs, const VersionNumber &rhs) noexcept
     {
         return ((lhs.major == rhs.major) && (lhs.minor == rhs.minor) && (lhs.patch == rhs.patch) && (lhs.tweak == rhs.tweak));
     }
 
-    [[nodiscard]] friend bool operator!=(const VersionNumber &lhs, const VersionNumber &rhs) noexcept
+    [[nodiscard]] friend constexpr bool operator!=(const VersionNumber &lhs, const VersionNumber &rhs) noexcept
     {
-        return !(lhs == rhs);
+        return !operator==(lhs, rhs);
     }
 
-    [[nodiscard]] friend bool operator>(const VersionNumber &lhs, const VersionNumber &rhs) noexcept
+    [[nodiscard]] friend constexpr bool operator>(const VersionNumber &lhs, const VersionNumber &rhs) noexcept
     {
         if (lhs.major > rhs.major) {
             return true;
@@ -365,19 +394,19 @@ struct VersionNumber
         return false;
     }
 
-    [[nodiscard]] friend bool operator<(const VersionNumber &lhs, const VersionNumber &rhs) noexcept
+    [[nodiscard]] friend constexpr bool operator<(const VersionNumber &lhs, const VersionNumber &rhs) noexcept
     {
-        return ((lhs != rhs) && !(lhs > rhs));
+        return (operator!=(lhs, rhs) && !operator>(lhs, rhs));
     }
 
-    [[nodiscard]] friend bool operator>=(const VersionNumber &lhs, const VersionNumber &rhs) noexcept
+    [[nodiscard]] friend constexpr bool operator>=(const VersionNumber &lhs, const VersionNumber &rhs) noexcept
     {
-        return ((lhs > rhs) || (lhs == rhs));
+        return (operator>(lhs, rhs) || operator==(lhs, rhs));
     }
 
-    [[nodiscard]] friend bool operator<=(const VersionNumber &lhs, const VersionNumber &rhs) noexcept
+    [[nodiscard]] friend constexpr bool operator<=(const VersionNumber &lhs, const VersionNumber &rhs) noexcept
     {
-        return ((lhs < rhs) || (lhs == rhs));
+        return (operator<(lhs, rhs) || operator==(lhs, rhs));
     }
 };
 
@@ -493,7 +522,15 @@ struct SystemParameters
     {10, 0, 22000}, // Windows 11 Version 21H2 (21H2)
     {10, 0, 22621}, // Windows 11 Version 22H2 (22H2)
 };
-static_assert(std::size(WindowsVersions) == (static_cast<int>(WindowsVersion::_11_22H2) + 1));
+static_assert(std::size(WindowsVersions) == (static_cast<int>(WindowsVersion::Latest) + 1));
+
+struct VersionInfo
+{
+    VersionNumber version = {};
+    QString commit = {};
+    QString compileDateTime = {};
+    QString compiler = {};
+};
 
 } // namespace Global
 
@@ -501,10 +538,11 @@ namespace FramelessHelper::Core
 {
 FRAMELESSHELPER_CORE_API void initialize();
 FRAMELESSHELPER_CORE_API void uninitialize();
-[[nodiscard]] FRAMELESSHELPER_CORE_API int version();
+[[nodiscard]] FRAMELESSHELPER_CORE_API Global::VersionInfo version();
 } // namespace FramelessHelper::Core
 
 FRAMELESSHELPER_END_NAMESPACE
 
 Q_DECLARE_METATYPE(FRAMELESSHELPER_PREPEND_NAMESPACE(Global)::VersionNumber)
 Q_DECLARE_METATYPE(FRAMELESSHELPER_PREPEND_NAMESPACE(Global)::SystemParameters)
+Q_DECLARE_METATYPE(FRAMELESSHELPER_PREPEND_NAMESPACE(Global)::VersionInfo)

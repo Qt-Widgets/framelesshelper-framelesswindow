@@ -24,17 +24,29 @@
 
 #include "framelesswidgetshelper.h"
 #include "framelesswidgetshelper_p.h"
+#include "framelesswidget.h"
+#include "framelesswidget_p.h"
+#include "framelessmainwindow.h"
+#include "framelessmainwindow_p.h"
+#include "widgetssharedhelper_p.h"
 #include <QtCore/qmutex.h>
 #include <QtCore/qhash.h>
-#include <QtCore/qpointer.h>
 #include <QtCore/qtimer.h>
+#include <QtCore/qdebug.h>
 #include <QtGui/qwindow.h>
+#include <QtGui/qpalette.h>
 #include <QtWidgets/qwidget.h>
 #include <framelessmanager.h>
 #include <framelessconfig_p.h>
 #include <utils.h>
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
+
+Q_LOGGING_CATEGORY(lcFramelessWidgetsHelper, "wangwenx190.framelesshelper.widgets.framelesswidgetshelper")
+#define INFO qCInfo(lcFramelessWidgetsHelper)
+#define DEBUG qCDebug(lcFramelessWidgetsHelper)
+#define WARNING qCWarning(lcFramelessWidgetsHelper)
+#define CRITICAL qCCritical(lcFramelessWidgetsHelper)
 
 using namespace Global;
 
@@ -58,6 +70,25 @@ struct WidgetsHelper
 };
 
 Q_GLOBAL_STATIC(WidgetsHelper, g_widgetsHelper)
+
+[[nodiscard]] static inline WidgetsSharedHelper *findWidgetsSharedHelper(QWidget *window)
+{
+    Q_ASSERT(window);
+    if (!window) {
+        return nullptr;
+    }
+    if (const auto widget = qobject_cast<FramelessWidget *>(window)) {
+        if (const auto widgetPriv = FramelessWidgetPrivate::get(widget)) {
+            return widgetPriv->widgetsSharedHelper();
+        }
+    }
+    if (const auto mainWindow = qobject_cast<FramelessMainWindow *>(window)) {
+        if (const auto mainWindowPriv = FramelessMainWindowPrivate::get(mainWindow)) {
+            return mainWindowPriv->widgetsSharedHelper();
+        }
+    }
+    return nullptr;
+}
 
 FramelessWidgetsHelperPrivate::FramelessWidgetsHelperPrivate(FramelessWidgetsHelper *q) : QObject(q)
 {
@@ -146,6 +177,56 @@ void FramelessWidgetsHelperPrivate::emitSignalForAllInstances(const QByteArray &
     }
     for (auto &&instance : qAsConst(instances)) {
         QMetaObject::invokeMethod(instance, signal.constData());
+    }
+}
+
+bool FramelessWidgetsHelperPrivate::isBlurBehindWindowEnabled() const
+{
+    return m_blurBehindWindowEnabled;
+}
+
+void FramelessWidgetsHelperPrivate::setBlurBehindWindowEnabled(const bool enable, const QColor &color)
+{
+    QWidget * const window = getWindow();
+    if (!window) {
+        return;
+    }
+    if (m_blurBehindWindowEnabled == enable) {
+        return;
+    }
+    if (Utils::isBlurBehindWindowSupported()) {
+        BlurMode mode = BlurMode::Disable;
+        QPalette palette = window->palette();
+        if (enable) {
+            if (!m_savedWindowBackgroundColor.isValid()) {
+                m_savedWindowBackgroundColor = palette.color(QPalette::Window);
+            }
+            palette.setColor(QPalette::Window, kDefaultTransparentColor);
+            mode = BlurMode::Default;
+        } else {
+            if (m_savedWindowBackgroundColor.isValid()) {
+                palette.setColor(QPalette::Window, m_savedWindowBackgroundColor);
+                m_savedWindowBackgroundColor = {};
+            }
+            mode = BlurMode::Disable;
+        }
+        window->setPalette(palette);
+        if (Utils::setBlurBehindWindowEnabled(window->winId(), mode, color)) {
+            m_blurBehindWindowEnabled = enable;
+            Q_Q(FramelessWidgetsHelper);
+            Q_EMIT q->blurBehindWindowEnabledChanged();
+        } else {
+            WARNING << "Failed to enable/disable blur behind window.";
+        }
+    } else {
+        if (WidgetsSharedHelper * const helper = findWidgetsSharedHelper(window)) {
+            m_blurBehindWindowEnabled = enable;
+            helper->setMicaEnabled(m_blurBehindWindowEnabled);
+            Q_Q(FramelessWidgetsHelper);
+            Q_EMIT q->blurBehindWindowEnabledChanged();
+        } else {
+            DEBUG << "Blur behind window is not supported on current platform.";
+        }
     }
 }
 
@@ -267,6 +348,9 @@ void FramelessWidgetsHelperPrivate::attachToWindow()
     QTimer::singleShot(0, this, [this](){
         if (FramelessConfig::instance()->isSet(Option::CenterWindowBeforeShow)) {
             moveWindowToDesktopCenter();
+        }
+        if (FramelessConfig::instance()->isSet(Option::EnableBlurBehindWindow)) {
+            setBlurBehindWindowEnabled(true, {});
         }
         emitSignalForAllInstances(FRAMELESSHELPER_BYTEARRAY_LITERAL("ready"));
     });
@@ -657,6 +741,12 @@ bool FramelessWidgetsHelper::isWindowFixedSize() const
     return d->isWindowFixedSize();
 }
 
+bool FramelessWidgetsHelper::isBlurBehindWindowEnabled() const
+{
+    Q_D(const FramelessWidgetsHelper);
+    return d->isBlurBehindWindowEnabled();
+}
+
 void FramelessWidgetsHelper::extendsContentIntoTitleBar()
 {
     // Intentionally not doing anything here.
@@ -730,6 +820,12 @@ void FramelessWidgetsHelper::setWindowFixedSize(const bool value)
 {
     Q_D(FramelessWidgetsHelper);
     d->setWindowFixedSize(value);
+}
+
+void FramelessWidgetsHelper::setBlurBehindWindowEnabled(const bool value)
+{
+    Q_D(FramelessWidgetsHelper);
+    d->setBlurBehindWindowEnabled(value, {});
 }
 
 FRAMELESSHELPER_END_NAMESPACE

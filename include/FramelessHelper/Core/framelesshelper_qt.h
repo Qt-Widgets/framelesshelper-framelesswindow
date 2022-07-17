@@ -26,8 +26,11 @@
 
 #include "framelesshelpercore_global.h"
 #include <QtCore/qobject.h>
+#include <QtCore/qloggingcategory.h>
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
+
+Q_DECLARE_LOGGING_CATEGORY(lcFramelessHelperQt)
 
 class FRAMELESSHELPER_CORE_API FramelessHelperQt : public QObject
 {
@@ -45,3 +48,5 @@ protected:
 };
 
 FRAMELESSHELPER_END_NAMESPACE
+
+Q_DECLARE_METATYPE2(FRAMELESSHELPER_PREPEND_NAMESPACE(FramelessHelperQt))

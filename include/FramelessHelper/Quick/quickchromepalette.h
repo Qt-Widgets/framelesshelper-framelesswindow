@@ -22,41 +22,31 @@
  * SOFTWARE.
  */
 
-#include <windows.h>
+#pragma once
 
-VS_VERSION_INFO VERSIONINFO
-FILEVERSION     0,0,0,0
-PRODUCTVERSION  2,1,1,0
-FILEFLAGSMASK   0x3fL
-#ifdef _DEBUG
-FILEFLAGS       VS_FF_DEBUG
-#else
-FILEFLAGS       0x0L
+#include "framelesshelperquick_global.h"
+#include <QtCore/qloggingcategory.h>
+#include <QtQml/qqml.h>
+#include <chromepalette.h>
+
+FRAMELESSHELPER_BEGIN_NAMESPACE
+
+Q_DECLARE_LOGGING_CATEGORY(lcQuickChromePalette)
+
+class FRAMELESSHELPER_QUICK_API QuickChromePalette : public ChromePalette
+{
+    Q_OBJECT
+#ifdef QML_ANONYMOUS
+    QML_ANONYMOUS
 #endif
-FILEOS          VOS_NT_WINDOWS32
-FILETYPE        VFT_DLL
-FILESUBTYPE     VFT2_UNKNOWN
-BEGIN
-    BLOCK "StringFileInfo"
-    BEGIN
-        BLOCK "040904b0"
-        BEGIN
-            VALUE "CompanyName",      "wangwenx190"
-            VALUE "FileDescription",  "FramelessHelper Widgets Module"
-            VALUE "FileVersion",      "0.0.0.0"
-            VALUE "LegalCopyright",   "MIT License"
-            #ifdef _DEBUG
-            VALUE "OriginalFilename", "FramelessHelperWidgetsd.dll"
-            #else
-            VALUE "OriginalFilename", "FramelessHelperWidgets.dll"
-            #endif
-            VALUE "ProductName",      "FramelessHelper"
-            VALUE "ProductVersion",   "2.1.1.0"
-            VALUE "InternalName",     "FramelessHelperWidgets"
-        END
-    END
-    BLOCK "VarFileInfo"
-    BEGIN
-        VALUE "Translation", 0x409, 1200
-    END
-END
+    Q_DISABLE_COPY_MOVE(QuickChromePalette)
+
+public:
+    explicit QuickChromePalette(QObject *parent = nullptr);
+    ~QuickChromePalette() override;
+};
+
+FRAMELESSHELPER_END_NAMESPACE
+
+Q_DECLARE_METATYPE2(FRAMELESSHELPER_PREPEND_NAMESPACE(QuickChromePalette))
+QML_DECLARE_TYPE(FRAMELESSHELPER_PREPEND_NAMESPACE(QuickChromePalette))

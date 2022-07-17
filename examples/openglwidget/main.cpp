@@ -52,6 +52,7 @@
 #include <QApplication>
 #include <QSurfaceFormat>
 #include <QOpenGLContext>
+#include <framelessconfig_p.h>
 #include "mainwindow.h"
 
 // This example demonstrates easy, cross-platform usage of OpenGL ES 3.0 functions via
@@ -68,9 +69,12 @@ int main(int argc, char *argv[])
 {
     // Not necessary, but better call this function, before the construction
     // of any Q(Core|Gui)Application instances.
-    FramelessHelper::Core::initialize();
+    FramelessHelper::Widgets::initialize();
 
     QApplication application(argc, argv);
+
+    FramelessConfig::instance()->set(Global::Option::WindowUseRoundCorners);
+    FramelessConfig::instance()->set(Global::Option::EnableBlurBehindWindow);
 
     QSurfaceFormat fmt = {};
     fmt.setDepthBufferSize(24);

@@ -26,8 +26,11 @@
 
 #include "framelesshelperwidgets_global.h"
 #include <QtCore/qobject.h>
+#include <QtCore/qloggingcategory.h>
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
+
+Q_DECLARE_LOGGING_CATEGORY(lcFramelessWidgetsHelper)
 
 class FramelessWidgetsHelperPrivate;
 
@@ -38,6 +41,7 @@ class FRAMELESSHELPER_WIDGETS_API FramelessWidgetsHelper : public QObject
     Q_DISABLE_COPY_MOVE(FramelessWidgetsHelper)
     Q_PROPERTY(QWidget* titleBarWidget READ titleBarWidget WRITE setTitleBarWidget NOTIFY titleBarWidgetChanged FINAL)
     Q_PROPERTY(bool windowFixedSize READ isWindowFixedSize WRITE setWindowFixedSize NOTIFY windowFixedSizeChanged FINAL)
+    Q_PROPERTY(bool blurBehindWindowEnabled READ isBlurBehindWindowEnabled WRITE setBlurBehindWindowEnabled NOTIFY blurBehindWindowEnabledChanged FINAL)
 
 public:
     explicit FramelessWidgetsHelper(QObject *parent = nullptr);
@@ -47,6 +51,7 @@ public:
 
     Q_NODISCARD QWidget *titleBarWidget() const;
     Q_NODISCARD bool isWindowFixedSize() const;
+    Q_NODISCARD bool isBlurBehindWindowEnabled() const;
 
 public Q_SLOTS:
     void extendsContentIntoTitleBar();
@@ -62,10 +67,12 @@ public Q_SLOTS:
     void moveWindowToDesktopCenter();
     void bringWindowToFront();
     void setWindowFixedSize(const bool value);
+    void setBlurBehindWindowEnabled(const bool value);
 
 Q_SIGNALS:
     void titleBarWidgetChanged();
     void windowFixedSizeChanged();
+    void blurBehindWindowEnabledChanged();
     void ready();
 
 private:
@@ -73,3 +80,5 @@ private:
 };
 
 FRAMELESSHELPER_END_NAMESPACE
+
+Q_DECLARE_METATYPE2(FRAMELESSHELPER_PREPEND_NAMESPACE(FramelessWidgetsHelper))

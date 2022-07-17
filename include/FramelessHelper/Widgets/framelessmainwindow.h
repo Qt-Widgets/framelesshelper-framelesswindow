@@ -25,9 +25,12 @@
 #pragma once
 
 #include "framelesshelperwidgets_global.h"
+#include <QtCore/qloggingcategory.h>
 #include <QtWidgets/qmainwindow.h>
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
+
+Q_DECLARE_LOGGING_CATEGORY(lcFramelessMainWindow)
 
 class FramelessMainWindowPrivate;
 
@@ -61,3 +64,5 @@ private:
 };
 
 FRAMELESSHELPER_END_NAMESPACE
+
+Q_DECLARE_METATYPE2(FRAMELESSHELPER_PREPEND_NAMESPACE(FramelessMainWindow))

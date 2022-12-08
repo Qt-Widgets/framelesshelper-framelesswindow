@@ -1,7 +1,7 @@
 #[[
   MIT License
 
-  Copyright (C) 2022 by wangwenx190 (Yuhang Zhao)
+  Copyright (C) 2021-2023 by wangwenx190 (Yuhang Zhao)
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
   of this software and associated documentation files (the "Software"), to deal
@@ -35,6 +35,7 @@ set(PUBLIC_HEADERS
     ${INCLUDE_PREFIX}/standardsystembutton.h
     ${INCLUDE_PREFIX}/framelesswidgetshelper.h
     ${INCLUDE_PREFIX}/standardtitlebar.h
+    ${INCLUDE_PREFIX}/framelessdialog.h
 )
 
 set(PUBLIC_HEADERS_ALIAS
@@ -44,6 +45,7 @@ set(PUBLIC_HEADERS_ALIAS
     ${INCLUDE_PREFIX}/StandardSystemButton
     ${INCLUDE_PREFIX}/FramelessWidgetsHelper
     ${INCLUDE_PREFIX}/StandardTitleBar
+    ${INCLUDE_PREFIX}/FramelessDialog
 )
 
 set(PRIVATE_HEADERS
@@ -53,6 +55,7 @@ set(PRIVATE_HEADERS
     ${INCLUDE_PREFIX}/private/framelesswidget_p.h
     ${INCLUDE_PREFIX}/private/framelessmainwindow_p.h
     ${INCLUDE_PREFIX}/private/widgetssharedhelper_p.h
+    ${INCLUDE_PREFIX}/private/framelessdialog_p.h
 )
 
 set(SOURCES
@@ -62,7 +65,8 @@ set(SOURCES
     standardsystembutton.cpp
     standardtitlebar.cpp
     widgetssharedhelper.cpp
-    global.cpp
+    framelesshelperwidgets_global.cpp
+    framelessdialog.cpp
 )
 
 if(WIN32 AND NOT FRAMELESSHELPER_BUILD_STATIC)
@@ -91,13 +95,30 @@ if(FRAMELESSHELPER_BUILD_STATIC)
     )
 endif()
 
+if(FRAMELESSHELPER_NO_DEBUG_OUTPUT)
+    target_compile_definitions(${SUB_PROJ_NAME} PRIVATE
+        FRAMELESSHELPER_WIDGETS_NO_DEBUG_OUTPUT
+    )
+endif()
+
+if(FRAMELESSHELPER_NO_BUNDLE_RESOURCE)
+    target_compile_definitions(${SUB_PROJ_NAME} PRIVATE
+        FRAMELESSHELPER_WIDGETS_NO_BUNDLE_RESOURCE
+    )
+endif()
+
+if(FRAMELESSHELPER_NO_PRIVATE)
+    target_compile_definitions(${SUB_PROJ_NAME} PRIVATE
+        FRAMELESSHELPER_WIDGETS_NO_PRIVATE
+    )
+endif()
+
 target_compile_definitions(${SUB_PROJ_NAME} PRIVATE
-    QT_NO_KEYWORDS
     FRAMELESSHELPER_WIDGETS_LIBRARY
 )
 
 target_link_libraries(${SUB_PROJ_NAME} PRIVATE
-    Qt${QT_VERSION_MAJOR}::WidgetsPrivate
+    Qt${QT_VERSION_MAJOR}::Widgets
 )
 
 target_link_libraries(${SUB_PROJ_NAME} PUBLIC

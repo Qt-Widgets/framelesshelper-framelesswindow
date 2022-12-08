@@ -1,7 +1,7 @@
 #[[
   MIT License
 
-  Copyright (C) 2022 by wangwenx190 (Yuhang Zhao)
+  Copyright (C) 2021-2023 by wangwenx190 (Yuhang Zhao)
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
   of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +23,10 @@
 ]]
 
 set(SOURCES
+    ../shared/log.h
+    ../shared/log.cpp
+    ../shared/settings.h
+    ../shared/settings.cpp
     widget.h
     widget.cpp
     main.cpp
@@ -30,7 +34,10 @@ set(SOURCES
 
 if(WIN32)
     enable_language(RC)
-    list(APPEND SOURCES ../example.rc ../example.manifest)
+    list(APPEND SOURCES
+        ../shared/example.rc
+        ../shared/example.manifest
+    )
 endif()
 
 add_executable(Widget ${SOURCES})
@@ -40,11 +47,9 @@ target_link_libraries(Widget PRIVATE
     FramelessHelper::Widgets
 )
 
-target_compile_definitions(Widget PRIVATE
-    QT_NO_KEYWORDS
-)
-
 include(../../src/core/cmakehelper.cmake)
 setup_gui_app(Widget)
 setup_compile_params(Widget)
-deploy_qt_runtime(Widget)
+if(FRAMELESSHELPER_EXAMPLES_DEPLOYQT)
+    deploy_qt_runtime(Widget)
+endif()

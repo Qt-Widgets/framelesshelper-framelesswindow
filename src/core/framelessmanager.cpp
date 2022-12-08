@@ -1,7 +1,7 @@
 /*
  * MIT License
  *
- * Copyright (C) 2022 by wangwenx190 (Yuhang Zhao)
+ * Copyright (C) 2021-2023 by wangwenx190 (Yuhang Zhao)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,18 +23,22 @@
  */
 
 #include "framelessmanager_p.h"
-#include <QtCore/qdebug.h>
 #include <QtCore/qmutex.h>
-#include <QtGui/qscreen.h>
-#include <QtGui/qwindow.h>
+#include <QtCore/qcoreapplication.h>
 #include <QtGui/qfontdatabase.h>
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 5, 0))
+#  include <QtGui/qguiapplication.h>
+#  include <QtGui/qstylehints.h>
+#endif // (QT_VERSION >= QT_VERSION_CHECK(6, 5, 0))
 #include "framelesshelper_qt.h"
 #include "framelessconfig_p.h"
 #include "utils.h"
 #ifdef Q_OS_WINDOWS
 #  include "framelesshelper_win.h"
+#  include "winverhelper_p.h"
 #endif
 
+#ifndef FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
 // The "Q_INIT_RESOURCE()" macro can't be used within a namespace,
 // so we wrap it into a separate function outside of the namespace and
 // then call it instead inside the namespace, that's also the recommended
@@ -43,14 +47,23 @@ static inline void initResource()
 {
     Q_INIT_RESOURCE(framelesshelpercore);
 }
+#endif // FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
 
 Q_LOGGING_CATEGORY(lcFramelessManager, "wangwenx190.framelesshelper.core.framelessmanager")
-#define INFO qCInfo(lcFramelessManager)
-#define DEBUG qCDebug(lcFramelessManager)
-#define WARNING qCWarning(lcFramelessManager)
-#define CRITICAL qCCritical(lcFramelessManager)
+
+#ifdef FRAMELESSHELPER_CORE_NO_DEBUG_OUTPUT
+#  define INFO QT_NO_QDEBUG_MACRO()
+#  define DEBUG QT_NO_QDEBUG_MACRO()
+#  define WARNING QT_NO_QDEBUG_MACRO()
+#  define CRITICAL QT_NO_QDEBUG_MACRO()
+#else
+#  define INFO qCInfo(lcFramelessManager)
+#  define DEBUG qCDebug(lcFramelessManager)
+#  define WARNING qCWarning(lcFramelessManager)
+#  define CRITICAL qCCritical(lcFramelessManager)
+#endif
 
 using namespace Global;
 
@@ -64,33 +77,37 @@ Q_GLOBAL_STATIC(FramelessManagerHelper, g_helper)
 
 Q_GLOBAL_STATIC(FramelessManager, g_manager)
 
-FRAMELESSHELPER_STRING_CONSTANT2(IconFontFilePath, ":/org.wangwenx190.FramelessHelper/resources/fonts/Micon.ttf")
+[[maybe_unused]] static constexpr const char kGlobalFlagVarName[] = "__FRAMELESSHELPER__";
+
+#ifndef FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
+FRAMELESSHELPER_STRING_CONSTANT2(IconFontFilePath, ":/org.wangwenx190.FramelessHelper/resources/fonts/iconfont.ttf")
 FRAMELESSHELPER_STRING_CONSTANT2(IconFontFamilyName_win11, "Segoe Fluent Icons")
 FRAMELESSHELPER_STRING_CONSTANT2(IconFontFamilyName_win10, "Segoe MDL2 Assets")
-FRAMELESSHELPER_STRING_CONSTANT2(IconFontFamilyName_common, "micon_nb")
-#ifdef Q_OS_MACOS
-  static constexpr const int kIconFontPointSize = 10;
-#else
-  static constexpr const int kIconFontPointSize = 8;
-#endif
+FRAMELESSHELPER_STRING_CONSTANT2(IconFontFamilyName_fallback, "iconfont")
+#  ifdef Q_OS_MACOS
+[[maybe_unused]] static constexpr const int kIconFontPointSize = 10;
+#  else // !Q_OS_MACOS
+[[maybe_unused]] static constexpr const int kIconFontPointSize = 8;
+#  endif // Q_OS_MACOS
+#endif // FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
 
+#ifndef FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
 [[nodiscard]] static inline QString iconFontFamilyName()
 {
-    static const QString result = []() -> QString {
+    static const auto result = []() -> QString {
 #ifdef Q_OS_WINDOWS
-        static const bool isWin11OrGreater = Utils::isWindowsVersionOrGreater(WindowsVersion::_11_21H2);
-        if (isWin11OrGreater) {
+        if (WindowsVersionHelper::isWin11OrGreater()) {
             return kIconFontFamilyName_win11;
         }
-        static const bool isWin10OrGreater = Utils::isWindowsVersionOrGreater(WindowsVersion::_10_1507);
-        if (isWin10OrGreater) {
+        if (WindowsVersionHelper::isWin10OrGreater()) {
             return kIconFontFamilyName_win10;
         }
-#endif
-        return kIconFontFamilyName_common;
+#endif // Q_OS_WINDOWS
+        return kIconFontFamilyName_fallback;
     }();
     return result;
 }
+#endif // FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
 
 FramelessManagerPrivate::FramelessManagerPrivate(FramelessManager *q) : QObject(q)
 {
@@ -124,6 +141,7 @@ const FramelessManagerPrivate *FramelessManagerPrivate::get(const FramelessManag
 
 void FramelessManagerPrivate::initializeIconFont()
 {
+#ifndef FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
     static bool inited = false;
     if (inited) {
         return;
@@ -137,40 +155,45 @@ void FramelessManagerPrivate::initializeIconFont()
     } else {
         DEBUG << "Successfully registered icon font:" << QFontDatabase::applicationFontFamilies(id);
     }
+#endif // FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
 }
 
 QFont FramelessManagerPrivate::getIconFont()
 {
-    static const QFont font = []() -> QFont {
+#ifdef FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
+    return {};
+#else // !FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
+    static const auto font = []() -> QFont {
         QFont f = {};
         f.setFamily(iconFontFamilyName());
         f.setPointSize(kIconFontPointSize);
         return f;
     }();
     return font;
+#endif // FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
 }
 
 SystemTheme FramelessManagerPrivate::systemTheme() const
 {
-    QMutexLocker locker(&g_helper()->mutex);
+    const QMutexLocker locker(&g_helper()->mutex);
     return m_systemTheme;
 }
 
 QColor FramelessManagerPrivate::systemAccentColor() const
 {
-    QMutexLocker locker(&g_helper()->mutex);
+    const QMutexLocker locker(&g_helper()->mutex);
     return m_accentColor;
 }
 
 QString FramelessManagerPrivate::wallpaper() const
 {
-    QMutexLocker locker(&g_helper()->mutex);
+    const QMutexLocker locker(&g_helper()->mutex);
     return m_wallpaper;
 }
 
 WallpaperAspectStyle FramelessManagerPrivate::wallpaperAspectStyle() const
 {
-    QMutexLocker locker(&g_helper()->mutex);
+    const QMutexLocker locker(&g_helper()->mutex);
     return m_wallpaperAspectStyle;
 }
 
@@ -188,31 +211,7 @@ void FramelessManagerPrivate::addWindow(const SystemParameters &params)
     }
     g_helper()->windowIds.append(windowId);
     g_helper()->mutex.unlock();
-    static const bool pureQt = []() -> bool {
-#ifdef Q_OS_WINDOWS
-        return FramelessConfig::instance()->isSet(Option::UseCrossPlatformQtImplementation);
-#else
-        return true;
-#endif
-    }();
-#ifdef Q_OS_WINDOWS
-    if (!pureQt) {
-        // Work-around Win32 multi-monitor artifacts.
-        QWindow * const window = params.getWindowHandle();
-        Q_ASSERT(window);
-        connect(window, &QWindow::screenChanged, window, [windowId, window](QScreen *screen){
-            Q_UNUSED(screen);
-            // Force a WM_NCCALCSIZE event to inform Windows about our custom window frame,
-            // this is only necessary when the window is being moved cross monitors.
-            Utils::triggerFrameChange(windowId);
-            // For some reason the window is not repainted correctly when moving cross monitors,
-            // we workaround this issue by force a re-paint and re-layout of the window by triggering
-            // a resize event manually. Although the actual size does not change, the issue we
-            // observed disappeared indeed, amazingly.
-            window->resize(window->size());
-        });
-    }
-#endif
+    static const bool pureQt = usePureQtImplementation();
     if (pureQt) {
         FramelessHelperQt::addWindow(params);
     }
@@ -221,13 +220,38 @@ void FramelessManagerPrivate::addWindow(const SystemParameters &params)
         FramelessHelperWin::addWindow(params);
     }
     Utils::installSystemMenuHook(windowId, params.isWindowFixedSize,
-        params.isInsideTitleBarDraggableArea, params.getWindowDevicePixelRatio);
+        params.isInsideTitleBarDraggableArea, params.getWindowHandle);
+#endif
+}
+
+void FramelessManagerPrivate::removeWindow(const WId windowId)
+{
+    Q_ASSERT(windowId);
+    if (!windowId) {
+        return;
+    }
+    g_helper()->mutex.lock();
+    if (!g_helper()->windowIds.contains(windowId)) {
+        g_helper()->mutex.unlock();
+        return;
+    }
+    g_helper()->windowIds.removeAll(windowId);
+    g_helper()->mutex.unlock();
+    static const bool pureQt = usePureQtImplementation();
+    if (pureQt) {
+        FramelessHelperQt::removeWindow(windowId);
+    }
+#ifdef Q_OS_WINDOWS
+    if (!pureQt) {
+        FramelessHelperWin::removeWindow(windowId);
+    }
+    Utils::uninstallSystemMenuHook(windowId);
 #endif
 }
 
 void FramelessManagerPrivate::notifySystemThemeHasChangedOrNot()
 {
-    QMutexLocker locker(&g_helper()->mutex);
+    const QMutexLocker locker(&g_helper()->mutex);
     const SystemTheme currentSystemTheme = Utils::getSystemTheme();
 #ifdef Q_OS_WINDOWS
     const DwmColorizationArea currentColorizationArea = Utils::getDwmColorizationArea();
@@ -257,13 +281,18 @@ void FramelessManagerPrivate::notifySystemThemeHasChangedOrNot()
     if (notify) {
         Q_Q(FramelessManager);
         Q_EMIT q->systemThemeChanged();
-        DEBUG << "Detected system theme changed.";
+        DEBUG.nospace() << "System theme changed. Current theme: " << m_systemTheme
+                        << ", accent color: " << m_accentColor.name(QColor::HexArgb).toUpper()
+#ifdef Q_OS_WINDOWS
+                        << ", colorization area: " << m_colorizationArea
+#endif
+                        << '.';
     }
 }
 
 void FramelessManagerPrivate::notifyWallpaperHasChangedOrNot()
 {
-    QMutexLocker locker(&g_helper()->mutex);
+    const QMutexLocker locker(&g_helper()->mutex);
     const QString currentWallpaper = Utils::getWallpaperFilePath();
     const WallpaperAspectStyle currentWallpaperAspectStyle = Utils::getWallpaperAspectStyle();
     bool notify = false;
@@ -278,13 +307,26 @@ void FramelessManagerPrivate::notifyWallpaperHasChangedOrNot()
     if (notify) {
         Q_Q(FramelessManager);
         Q_EMIT q->wallpaperChanged();
-        DEBUG << "Detected wallpaper changed.";
+        DEBUG.nospace() << "Wallpaper changed. Current wallpaper: " << m_wallpaper
+                        << ", aspect style: " << m_wallpaperAspectStyle << '.';
     }
+}
+
+bool FramelessManagerPrivate::usePureQtImplementation()
+{
+    static const auto result = []() -> bool {
+#ifdef Q_OS_WINDOWS
+        return FramelessConfig::instance()->isSet(Option::UseCrossPlatformQtImplementation);
+#else
+        return true;
+#endif
+    }();
+    return result;
 }
 
 void FramelessManagerPrivate::initialize()
 {
-    QMutexLocker locker(&g_helper()->mutex);
+    const QMutexLocker locker(&g_helper()->mutex);
     m_systemTheme = Utils::getSystemTheme();
 #ifdef Q_OS_WINDOWS
     m_colorizationArea = Utils::getDwmColorizationArea();
@@ -298,6 +340,33 @@ void FramelessManagerPrivate::initialize()
 #endif
     m_wallpaper = Utils::getWallpaperFilePath();
     m_wallpaperAspectStyle = Utils::getWallpaperAspectStyle();
+    DEBUG.nospace() << "Current system theme: " << m_systemTheme
+                    << ", accent color: " << m_accentColor.name(QColor::HexArgb).toUpper()
+#ifdef Q_OS_WINDOWS
+                    << ", colorization area: " << m_colorizationArea
+#endif
+                    << ", wallpaper: " << m_wallpaper
+                    << ", aspect style: " << m_wallpaperAspectStyle
+                    << '.';
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 5, 0))
+    QStyleHints * const styleHints = QGuiApplication::styleHints();
+    Q_ASSERT(styleHints);
+    if (styleHints) {
+        connect(styleHints, &QStyleHints::appearanceChanged, this, [this](const Qt::Appearance appearance){
+            Q_UNUSED(appearance);
+            notifySystemThemeHasChangedOrNot();
+        });
+    }
+#endif // (QT_VERSION >= QT_VERSION_CHECK(6, 5, 0))
+    static bool flagSet = false;
+    if (!flagSet) {
+        flagSet = true;
+        // Set a global flag so that people can check whether FramelessHelper is being
+        // used without actually accessing the FramelessHelper interface.
+        const int ver = FramelessHelper::Core::version().version;
+        qputenv(kGlobalFlagVarName, QByteArray::number(ver));
+        qApp->setProperty(kGlobalFlagVarName, ver);
+    }
 }
 
 FramelessManager::FramelessManager(QObject *parent) :
@@ -340,6 +409,12 @@ void FramelessManager::addWindow(const SystemParameters &params)
 {
     Q_D(FramelessManager);
     d->addWindow(params);
+}
+
+void FramelessManager::removeWindow(const WId windowId)
+{
+    Q_D(FramelessManager);
+    d->removeWindow(windowId);
 }
 
 FRAMELESSHELPER_END_NAMESPACE

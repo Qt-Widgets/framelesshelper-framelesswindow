@@ -1,7 +1,7 @@
 /*
  * MIT License
  *
- * Copyright (C) 2022 by wangwenx190 (Yuhang Zhao)
+ * Copyright (C) 2021-2023 by wangwenx190 (Yuhang Zhao)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -58,8 +58,8 @@
 #  define _WIN32_WINNT_WIN10 0x0A00
 #endif
 
-#ifndef NTDDI_WIN10_CO
-#  define NTDDI_WIN10_CO 0x0A00000B
+#ifndef NTDDI_WIN10_NI
+#  define NTDDI_WIN10_NI 0x0A00000C
 #endif
 
 #ifndef WINVER
@@ -71,7 +71,7 @@
 #endif
 
 #ifndef NTDDI_VERSION
-#  define NTDDI_VERSION NTDDI_WIN10_CO
+#  define NTDDI_VERSION NTDDI_WIN10_NI
 #endif
 
 #include <windows.h>
@@ -97,6 +97,10 @@
 
 #ifndef WM_DPICHANGED
 #  define WM_DPICHANGED (0x02E0)
+#endif
+
+#ifndef WM_GETDPISCALEDSIZE
+#  define WM_GETDPISCALEDSIZE (0x02E4)
 #endif
 
 #ifndef SM_CXPADDEDBORDER
@@ -143,81 +147,171 @@
 #  define USER_DEFAULT_SCREEN_DPI (96)
 #endif
 
-#ifndef _DPI_AWARENESS_CONTEXTS_
-#  define _DPI_AWARENESS_CONTEXTS_
-   DECLARE_HANDLE(DPI_AWARENESS_CONTEXT);
-#  define DPI_AWARENESS_CONTEXT_UNAWARE (reinterpret_cast<DPI_AWARENESS_CONTEXT>(-1))
-#  define DPI_AWARENESS_CONTEXT_SYSTEM_AWARE (reinterpret_cast<DPI_AWARENESS_CONTEXT>(-2))
-#  define DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE (reinterpret_cast<DPI_AWARENESS_CONTEXT>(-3))
-#  define DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 (reinterpret_cast<DPI_AWARENESS_CONTEXT>(-4))
-#  define DPI_AWARENESS_CONTEXT_UNAWARE_GDISCALED (reinterpret_cast<DPI_AWARENESS_CONTEXT>(-5))
+DECLARE_HANDLE(_DPI_AWARENESS_CONTEXT);
+
+#ifndef _DPI_AWARENESS_CONTEXT_UNAWARE
+#  define _DPI_AWARENESS_CONTEXT_UNAWARE (reinterpret_cast<_DPI_AWARENESS_CONTEXT>(-1))
 #endif
 
-#ifndef STATUS_SUCCESS
-#  define STATUS_SUCCESS (static_cast<NTSTATUS>(0x00000000L))
+#ifndef _DPI_AWARENESS_CONTEXT_SYSTEM_AWARE
+#  define _DPI_AWARENESS_CONTEXT_SYSTEM_AWARE (reinterpret_cast<_DPI_AWARENESS_CONTEXT>(-2))
 #endif
 
-using NTSTATUS = LONG;
+#ifndef _DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE
+#  define _DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE (reinterpret_cast<_DPI_AWARENESS_CONTEXT>(-3))
+#endif
 
-#ifndef WINMMAPI
-using MMRESULT = UINT;
+#ifndef _DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
+#  define _DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 (reinterpret_cast<_DPI_AWARENESS_CONTEXT>(-4))
+#endif
 
-using TIMECAPS = struct TIMECAPS
+#ifndef _DPI_AWARENESS_CONTEXT_UNAWARE_GDISCALED
+#  define _DPI_AWARENESS_CONTEXT_UNAWARE_GDISCALED (reinterpret_cast<_DPI_AWARENESS_CONTEXT>(-5))
+#endif
+
+#ifndef HKEY_CLASSES_ROOT
+#  define HKEY_CLASSES_ROOT (reinterpret_cast<HKEY>(static_cast<ULONG_PTR>(static_cast<LONG>(0x80000000))))
+#endif
+
+#ifndef HKEY_CURRENT_USER
+#  define HKEY_CURRENT_USER (reinterpret_cast<HKEY>(static_cast<ULONG_PTR>(static_cast<LONG>(0x80000001))))
+#endif
+
+#ifndef HKEY_LOCAL_MACHINE
+#  define HKEY_LOCAL_MACHINE (reinterpret_cast<HKEY>(static_cast<ULONG_PTR>(static_cast<LONG>(0x80000002))))
+#endif
+
+#ifndef HKEY_USERS
+#  define HKEY_USERS (reinterpret_cast<HKEY>(static_cast<ULONG_PTR>(static_cast<LONG>(0x80000003))))
+#endif
+
+#ifndef HKEY_PERFORMANCE_DATA
+#  define HKEY_PERFORMANCE_DATA (reinterpret_cast<HKEY>(static_cast<ULONG_PTR>(static_cast<LONG>(0x80000004))))
+#endif
+
+#ifndef HKEY_CURRENT_CONFIG
+#  define HKEY_CURRENT_CONFIG (reinterpret_cast<HKEY>(static_cast<ULONG_PTR>(static_cast<LONG>(0x80000005))))
+#endif
+
+#ifndef HKEY_DYN_DATA
+#  define HKEY_DYN_DATA (reinterpret_cast<HKEY>(static_cast<ULONG_PTR>(static_cast<LONG>(0x80000006))))
+#endif
+
+#ifndef HKEY_CURRENT_USER_LOCAL_SETTINGS
+#  define HKEY_CURRENT_USER_LOCAL_SETTINGS (reinterpret_cast<HKEY>(static_cast<ULONG_PTR>(static_cast<LONG>(0x80000007))))
+#endif
+
+#ifndef HKEY_PERFORMANCE_TEXT
+#  define HKEY_PERFORMANCE_TEXT (reinterpret_cast<HKEY>(static_cast<ULONG_PTR>(static_cast<LONG>(0x80000050))))
+#endif
+
+#ifndef HKEY_PERFORMANCE_NLSTEXT
+#  define HKEY_PERFORMANCE_NLSTEXT (reinterpret_cast<HKEY>(static_cast<ULONG_PTR>(static_cast<LONG>(0x80000060))))
+#endif
+
+#ifndef _STATUS_SUCCESS
+#  define _STATUS_SUCCESS (static_cast<_NTSTATUS>(0x00000000L))
+#endif
+
+#ifndef WTNCA_NODRAWCAPTION
+#  define WTNCA_NODRAWCAPTION (0x00000001) // don't draw the window caption
+#endif
+
+#ifndef WTNCA_NODRAWICON
+#  define WTNCA_NODRAWICON (0x00000002) // don't draw the system icon
+#endif
+
+#ifndef WTNCA_NOSYSMENU
+#  define WTNCA_NOSYSMENU (0x00000004) // don't expose the system menu icon functionality
+#endif
+
+#ifndef WTNCA_NOMIRRORHELP
+#  define WTNCA_NOMIRRORHELP (0x00000008) // don't mirror the question mark, even in RTL layout
+#endif
+
+#ifndef WTNCA_VALIDBITS
+#  define WTNCA_VALIDBITS (WTNCA_NODRAWCAPTION | WTNCA_NODRAWICON | WTNCA_NOSYSMENU | WTNCA_NOMIRRORHELP)
+#endif
+
+#ifndef EXTERN_C
+#  define EXTERN_C extern "C"
+#endif
+
+#ifndef EXTERN_C_START
+#  define EXTERN_C_START EXTERN_C {
+#endif
+
+#ifndef EXTERN_C_END
+#  define EXTERN_C_END }
+#endif
+
+using _NTSTATUS = LONG;
+
+using _MMRESULT = UINT;
+using _TIMECAPS = struct _TIMECAPS
 {
     UINT wPeriodMin; // minimum period supported
     UINT wPeriodMax; // maximum period supported
 };
-using PTIMECAPS = TIMECAPS *;
-using NPTIMECAPS = TIMECAPS NEAR *;
-using LPTIMECAPS = TIMECAPS FAR *;
-#endif
+using _PTIMECAPS = _TIMECAPS *;
 
-using PROCESS_DPI_AWARENESS = enum PROCESS_DPI_AWARENESS
+using _PROCESS_DPI_AWARENESS = enum _PROCESS_DPI_AWARENESS
 {
-    PROCESS_DPI_UNAWARE = 0,
-    PROCESS_SYSTEM_DPI_AWARE = 1,
-    PROCESS_PER_MONITOR_DPI_AWARE = 2,
-    PROCESS_PER_MONITOR_DPI_AWARE_V2 = 3
+    _PROCESS_DPI_UNAWARE = 0,
+    _PROCESS_SYSTEM_DPI_AWARE = 1,
+    _PROCESS_PER_MONITOR_DPI_AWARE = 2,
+    _PROCESS_PER_MONITOR_DPI_AWARE_V2 = 3,
+    _PROCESS_DPI_UNAWARE_GDISCALED = 4
 };
 
-using MONITOR_DPI_TYPE = enum MONITOR_DPI_TYPE
+using _MONITOR_DPI_TYPE = enum _MONITOR_DPI_TYPE
 {
-    MDT_EFFECTIVE_DPI = 0,
-    MDT_ANGULAR_DPI = 1,
-    MDT_RAW_DPI = 2,
-    MDT_DEFAULT = MDT_EFFECTIVE_DPI
+    _MDT_EFFECTIVE_DPI = 0,
+    _MDT_ANGULAR_DPI = 1,
+    _MDT_RAW_DPI = 2,
+    _MDT_DEFAULT = _MDT_EFFECTIVE_DPI
 };
 
-using DEVICE_SCALE_FACTOR = enum DEVICE_SCALE_FACTOR
+using _DEVICE_SCALE_FACTOR = enum _DEVICE_SCALE_FACTOR
 {
-    DEVICE_SCALE_FACTOR_INVALID = 0,
-    SCALE_100_PERCENT = 100,
-    SCALE_120_PERCENT = 120,
-    SCALE_125_PERCENT = 125,
-    SCALE_140_PERCENT = 140,
-    SCALE_150_PERCENT = 150,
-    SCALE_160_PERCENT = 160,
-    SCALE_175_PERCENT = 175,
-    SCALE_180_PERCENT = 180,
-    SCALE_200_PERCENT = 200,
-    SCALE_225_PERCENT = 225,
-    SCALE_250_PERCENT = 250,
-    SCALE_300_PERCENT = 300,
-    SCALE_350_PERCENT = 350,
-    SCALE_400_PERCENT = 400,
-    SCALE_450_PERCENT = 450,
-    SCALE_500_PERCENT = 500
+    _DEVICE_SCALE_FACTOR_INVALID = 0,
+    _SCALE_100_PERCENT = 100,
+    _SCALE_120_PERCENT = 120,
+    _SCALE_125_PERCENT = 125,
+    _SCALE_140_PERCENT = 140,
+    _SCALE_150_PERCENT = 150,
+    _SCALE_160_PERCENT = 160,
+    _SCALE_175_PERCENT = 175,
+    _SCALE_180_PERCENT = 180,
+    _SCALE_200_PERCENT = 200,
+    _SCALE_225_PERCENT = 225,
+    _SCALE_250_PERCENT = 250,
+    _SCALE_300_PERCENT = 300,
+    _SCALE_350_PERCENT = 350,
+    _SCALE_400_PERCENT = 400,
+    _SCALE_450_PERCENT = 450,
+    _SCALE_500_PERCENT = 500
+};
+
+using _DPI_AWARENESS = enum _DPI_AWARENESS
+{
+    _DPI_AWARENESS_INVALID = -1,
+    _DPI_AWARENESS_UNAWARE = 0,
+    _DPI_AWARENESS_SYSTEM_AWARE = 1,
+    _DPI_AWARENESS_PER_MONITOR_AWARE = 2,
+    _DPI_AWARENESS_PER_MONITOR_AWARE_V2 = 3,
+    _DPI_AWARENESS_UNAWARE_GDISCALED = 4
 };
 
 using _DWMWINDOWATTRIBUTE = enum _DWMWINDOWATTRIBUTE
 {
     _DWMWA_USE_HOSTBACKDROPBRUSH = 17, // [set] BOOL, Allows the use of host backdrop brushes for the window.
-    _DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1 = 19, // Undocumented
+    _DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1 = 19, // Undocumented, the same with DWMWA_USE_IMMERSIVE_DARK_MODE, but available on systems before Win10 20H1.
     _DWMWA_USE_IMMERSIVE_DARK_MODE = 20, // [set] BOOL, Allows a window to either use the accent color, or dark, according to the user Color Mode preferences.
     _DWMWA_WINDOW_CORNER_PREFERENCE = 33, // [set] WINDOW_CORNER_PREFERENCE, Controls the policy that rounds top-level window corners
     _DWMWA_VISIBLE_FRAME_BORDER_THICKNESS = 37, // [get] UINT, width of the visible border around a thick frame window
     _DWMWA_SYSTEMBACKDROP_TYPE = 38, // [get, set] SYSTEMBACKDROP_TYPE, Controls the system-drawn backdrop material of a window, including behind the non-client area.
-    _DWMWA_MICA_EFFECT = 1029 // Undocumented
+    _DWMWA_MICA_EFFECT = 1029 // Undocumented, use this value to enable Mica material on Win11 21H2. You should use DWMWA_SYSTEMBACKDROP_TYPE instead on Win11 22H2 and newer.
 };
 
 using _DWM_WINDOW_CORNER_PREFERENCE = enum _DWM_WINDOW_CORNER_PREFERENCE
@@ -234,7 +328,7 @@ using _DWM_SYSTEMBACKDROP_TYPE = enum _DWM_SYSTEMBACKDROP_TYPE
     _DWMSBT_NONE = 1, // Do not draw any system backdrop.
     _DWMSBT_MAINWINDOW = 2, /* Mica */ // Draw the backdrop material effect corresponding to a long-lived window.
     _DWMSBT_TRANSIENTWINDOW = 3, /* Acrylic */ // Draw the backdrop material effect corresponding to a transient window.
-    _DWMSBT_TABBEDWINDOW = 4 /* Aero */ // Draw the backdrop material effect corresponding to a window with a tabbed title bar.
+    _DWMSBT_TABBEDWINDOW = 4 /* Mica Alt */ // Draw the backdrop material effect corresponding to a window with a tabbed title bar.
 };
 
 using WINDOWCOMPOSITIONATTRIB = enum WINDOWCOMPOSITIONATTRIB
@@ -291,98 +385,64 @@ using ACCENT_POLICY = struct ACCENT_POLICY
     DWORD AnimationId;
 };
 using PACCENT_POLICY = ACCENT_POLICY *;
-using NPACCENT_POLICY = ACCENT_POLICY NEAR *;
-using LPACCENT_POLICY = ACCENT_POLICY FAR *;
 
 using WINDOWCOMPOSITIONATTRIBDATA = struct WINDOWCOMPOSITIONATTRIBDATA
 {
     WINDOWCOMPOSITIONATTRIB Attrib;
     PVOID pvData;
-    SIZE_T cbData;
+    DWORD cbData;
 };
 using PWINDOWCOMPOSITIONATTRIBDATA = WINDOWCOMPOSITIONATTRIBDATA *;
-using NPWINDOWCOMPOSITIONATTRIBDATA = WINDOWCOMPOSITIONATTRIBDATA NEAR *;
-using LPWINDOWCOMPOSITIONATTRIBDATA = WINDOWCOMPOSITIONATTRIBDATA FAR *;
+
+using _WINDOWTHEMEATTRIBUTETYPE = enum _WINDOWTHEMEATTRIBUTETYPE
+{
+    _WTA_NONCLIENT = 1
+};
+
+using WTA_OPTIONS2 = struct WTA_OPTIONS2
+{
+    DWORD dwFlags; // Values for each style option specified in the bitmask.
+    DWORD dwMask; // Bitmask for flags that are changing.
+};
+using PWTA_OPTIONS2 = WTA_OPTIONS2 *;
+
+using IMMERSIVE_HC_CACHE_MODE = enum IMMERSIVE_HC_CACHE_MODE
+{
+    IHCM_USE_CACHED_VALUE = 0,
+    IHCM_REFRESH = 1
+};
+
+using PREFERRED_APP_MODE = enum PREFERRED_APP_MODE
+{
+    PAM_DEFAULT = 0, // Default behavior on systems before Win10 1809. It indicates the application doesn't support dark mode at all.
+    PAM_AUTO = 1, // Available since Win10 1809, let system decide whether to enable dark mode or not.
+    PAM_DARK = 2, // Available since Win10 1903, force dark mode regardless of the system theme.
+    PAM_LIGHT = 3, // Available since Win10 1903, force light mode regardless of the system theme.
+    PAM_MAX = 4
+};
 
 using GetWindowCompositionAttributePtr = BOOL(WINAPI *)(HWND, PWINDOWCOMPOSITIONATTRIBDATA);
 using SetWindowCompositionAttributePtr = BOOL(WINAPI *)(HWND, PWINDOWCOMPOSITIONATTRIBDATA);
+// Win10 1809 (10.0.17763)
+using ShouldAppsUseDarkModePtr = BOOL(WINAPI *)(VOID); // Ordinal 132
+using AllowDarkModeForWindowPtr = BOOL(WINAPI *)(HWND, BOOL); // Ordinal 133
+using AllowDarkModeForAppPtr = BOOL(WINAPI *)(BOOL); // Ordinal 135
+using FlushMenuThemesPtr = VOID(WINAPI *)(VOID); // Ordinal 136
+using RefreshImmersiveColorPolicyStatePtr = VOID(WINAPI *)(VOID); // Ordinal 104
+using IsDarkModeAllowedForWindowPtr = BOOL(WINAPI *)(HWND); // Ordinal 137
+using GetIsImmersiveColorUsingHighContrastPtr = BOOL(WINAPI *)(IMMERSIVE_HC_CACHE_MODE); // Ordinal 106
+using OpenNcThemeDataPtr = HTHEME(WINAPI *)(HWND, LPCWSTR); // Ordinal 49
+// Win10 1903 (10.0.18362)
+using ShouldSystemUseDarkModePtr = BOOL(WINAPI *)(VOID); // Ordinal 138
+using SetPreferredAppModePtr = PREFERRED_APP_MODE(WINAPI *)(PREFERRED_APP_MODE); // Ordinal 135
+using IsDarkModeAllowedForAppPtr = BOOL(WINAPI *)(VOID); // Ordinal 139
 
-EXTERN_C_START
-
-DECLSPEC_IMPORT MMRESULT WINAPI
-timeGetDevCaps(
-    _Out_writes_bytes_(cbtc) LPTIMECAPS ptc,
-    _In_ UINT cbtc
-);
-
-DECLSPEC_IMPORT MMRESULT WINAPI
-timeBeginPeriod(
-    _In_ UINT uPeriod
-);
-
-DECLSPEC_IMPORT MMRESULT WINAPI
-timeEndPeriod(
-    _In_ UINT uPeriod
-);
-
-DECLSPEC_IMPORT HRESULT WINAPI
-SetProcessDpiAwareness(
-    _In_ PROCESS_DPI_AWARENESS value
-);
-
-DECLSPEC_IMPORT HRESULT WINAPI
-GetDpiForMonitor(
-    _In_ HMONITOR hMonitor,
-    _In_ MONITOR_DPI_TYPE dpiType,
-    _Out_ UINT *dpiX,
-    _Out_ UINT *dpiY
-);
-
-DECLSPEC_IMPORT int WINAPI
-GetSystemMetricsForDpi(
-    _In_ int nIndex,
-    _In_ UINT dpi
-);
-
-DECLSPEC_IMPORT UINT WINAPI
-GetDpiForWindow(
-    _In_ HWND hwnd
-);
-
-DECLSPEC_IMPORT UINT WINAPI
-GetDpiForSystem(
-    VOID
-);
-
-DECLSPEC_IMPORT UINT WINAPI
-GetSystemDpiForProcess(
-    _In_ HANDLE hProcess
-);
-
-DECLSPEC_IMPORT BOOL WINAPI
-SetProcessDpiAwarenessContext(
-    _In_ DPI_AWARENESS_CONTEXT value
-);
-
-DECLSPEC_IMPORT BOOL WINAPI
-SetProcessDPIAware(
-    VOID
-);
-
-DECLSPEC_IMPORT HRESULT WINAPI
-GetScaleFactorForMonitor(
-    _In_ HMONITOR hMon,
-    _Out_ DEVICE_SCALE_FACTOR *pScale
-);
-
-EXTERN_C_END
-
-[[maybe_unused]] static constexpr const int kAutoHideTaskBarThickness = 2; // The thickness of an auto-hide taskbar in pixels.
-
-[[maybe_unused]] static constexpr const wchar_t kDwmRegistryKey[] = LR"(Software\Microsoft\Windows\DWM)";
-[[maybe_unused]] static constexpr const wchar_t kPersonalizeRegistryKey[] = LR"(Software\Microsoft\Windows\CurrentVersion\Themes\Personalize)";
-[[maybe_unused]] static constexpr const wchar_t kThemeSettingChangeEventName[] = L"ImmersiveColorSet";
-[[maybe_unused]] static constexpr const wchar_t kDwmColorKeyName[] = L"ColorPrevalence";
-[[maybe_unused]] static constexpr const wchar_t kSystemDarkThemeResourceName[] = L"DarkMode_Explorer";
-[[maybe_unused]] static constexpr const wchar_t kSystemLightThemeResourceName[] = L"Explorer";
-[[maybe_unused]] static constexpr const wchar_t kDesktopRegistryKey[] = LR"(Control Panel\Desktop)";
+[[maybe_unused]] inline constexpr const int kAutoHideTaskBarThickness = 2; // The thickness of an auto-hide taskbar in pixels.
+[[maybe_unused]] inline constexpr const wchar_t kDwmRegistryKey[] = LR"(Software\Microsoft\Windows\DWM)";
+[[maybe_unused]] inline constexpr const wchar_t kPersonalizeRegistryKey[] = LR"(Software\Microsoft\Windows\CurrentVersion\Themes\Personalize)";
+[[maybe_unused]] inline constexpr const wchar_t kThemeSettingChangeEventName[] = L"ImmersiveColorSet";
+[[maybe_unused]] inline constexpr const wchar_t kDwmColorKeyName[] = L"ColorPrevalence";
+[[maybe_unused]] inline constexpr const wchar_t kSystemDarkThemeResourceName[] = L"DarkMode_Explorer";
+[[maybe_unused]] inline constexpr const wchar_t kSystemLightThemeResourceName[] = L"Explorer";
+[[maybe_unused]] inline constexpr const wchar_t kDesktopRegistryKey[] = LR"(Control Panel\Desktop)";
+[[maybe_unused]] inline constexpr const wchar_t kDarkModePropertyName[] = L"UseImmersiveDarkModeColors";

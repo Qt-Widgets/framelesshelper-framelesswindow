@@ -1,7 +1,7 @@
 #[[
   MIT License
 
-  Copyright (C) 2022 by wangwenx190 (Yuhang Zhao)
+  Copyright (C) 2021-2023 by wangwenx190 (Yuhang Zhao)
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
   of this software and associated documentation files (the "Software"), to deal
@@ -26,18 +26,25 @@ find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Qml Quick QuickControls2)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Qml Quick QuickControls2)
 
 set(SOURCES
+    ../shared/log.h
+    ../shared/log.cpp
+    ../shared/settings.h
+    ../shared/settings.cpp
     main.cpp
-    settings.h
-    settings.cpp
+    quicksettings.h
+    quicksettings.cpp
 )
 
 if(${QT_VERSION} VERSION_LESS 6.2)
-    list(APPEND SOURCES qml.qrc)
+    list(APPEND SOURCES resources.qrc)
 endif()
 
 if(WIN32)
     enable_language(RC)
-    list(APPEND SOURCES ../example.rc ../example.manifest)
+    list(APPEND SOURCES
+        ../shared/example.rc
+        ../shared/example.manifest
+    )
 endif()
 
 add_executable(Quick ${SOURCES})
@@ -46,15 +53,24 @@ if(${QT_VERSION} VERSION_GREATER_EQUAL 6.2)
     qt_add_qml_module(Quick
         URI Demo
         VERSION 1.0
-        IMPORT_PATH ${PROJECT_BINARY_DIR}/imports
+        IMPORT_PATH "${PROJECT_BINARY_DIR}/imports"
         IMPORTS
-            QtQml
-            QtQuick
-            QtQuick.Controls.Basic
-            org.wangwenx190.FramelessHelper
-        QML_FILES MainWindow.qml
+            QtQml/auto
+            QtQuick/auto
+            QtQuick.Controls.Basic/auto
+            org.wangwenx190.FramelessHelper/auto
+        QML_FILES
+            Window.qml
+            ApplicationWindow.qml
+            HomePage.qml
         #ENABLE_TYPE_COMPILER # We can't use it for now due to it still can't compile singletons.
                               # There's some hope to get it supported in Qt 6.5.
+    )
+    qt_add_resources(Quick resources
+        PREFIX
+            "/Demo"
+        FILES
+            "images/microsoft.svg"
     )
 endif()
 
@@ -66,11 +82,15 @@ target_link_libraries(Quick PRIVATE
 )
 
 target_compile_definitions(Quick PRIVATE
-    QT_NO_KEYWORDS
     $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:QT_QML_DEBUG>
 )
 
 include(../../src/core/cmakehelper.cmake)
 setup_gui_app(Quick)
 setup_compile_params(Quick)
-deploy_qt_runtime(Quick)
+if(FRAMELESSHELPER_EXAMPLES_DEPLOYQT)
+    deploy_qt_runtime(Quick
+        QML_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
+        #QML_IMPORT_DIR "${PROJECT_BINARY_DIR}/qml" # Some applications failed to start.
+    )
+endif()

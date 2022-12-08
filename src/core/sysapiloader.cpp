@@ -1,7 +1,7 @@
 /*
  * MIT License
  *
- * Copyright (C) 2022 by wangwenx190 (Yuhang Zhao)
+ * Copyright (C) 2021-2023 by wangwenx190 (Yuhang Zhao)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,20 +23,59 @@
  */
 
 #include "sysapiloader_p.h"
-#include <QtCore/qdebug.h>
-#ifdef Q_OS_WINDOWS
+
+#ifndef SYSAPILOADER_FORCE_QLIBRARY
+#  define SYSAPILOADER_FORCE_QLIBRARY (0)
+#endif // SYSAPILOADER_FORCE_QLIBRARY
+
+#ifndef SYSAPILOADER_IMPL
+#  if (defined(Q_OS_WINDOWS) && !defined(FRAMELESSHELPER_CORE_NO_PRIVATE))
+#    define SYSAPILOADER_IMPL (1)
+#  else // (!Q_OS_WINDOWS || FRAMELESSHELPER_CORE_NO_PRIVATE)
+#    define SYSAPILOADER_IMPL (2)
+#  endif // (defined(Q_OS_WINDOWS) && !defined(FRAMELESSHELPER_CORE_NO_PRIVATE))
+#endif // SYSAPILOADER_IMPL
+
+#ifndef SYSAPILOADER_QSYSTEMLIBRARY
+#  define SYSAPILOADER_QSYSTEMLIBRARY ((SYSAPILOADER_IMPL) == 1)
+#endif // SYSAPILOADER_QSYSTEMLIBRARY
+
+#ifndef SYSAPILOADER_QLIBRARY
+#  define SYSAPILOADER_QLIBRARY ((SYSAPILOADER_IMPL) == 2)
+#endif // SYSAPILOADER_QLIBRARY
+
+#include <QtCore/qhash.h>
+#include <QtCore/qmutex.h>
+#if SYSAPILOADER_QSYSTEMLIBRARY
 #  include <QtCore/private/qsystemlibrary_p.h>
-#else
+#endif // SYSAPILOADER_QSYSTEMLIBRARY
+#if SYSAPILOADER_QLIBRARY
 #  include <QtCore/qlibrary.h>
-#endif
+#endif // SYSAPILOADER_QLIBRARY
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
 
 Q_LOGGING_CATEGORY(lcSysApiLoader, "wangwenx190.framelesshelper.core.sysapiloader")
-#define INFO qCInfo(lcSysApiLoader)
-#define DEBUG qCDebug(lcSysApiLoader)
-#define WARNING qCWarning(lcSysApiLoader)
-#define CRITICAL qCCritical(lcSysApiLoader)
+
+#ifdef FRAMELESSHELPER_CORE_NO_DEBUG_OUTPUT
+#  define INFO QT_NO_QDEBUG_MACRO()
+#  define DEBUG QT_NO_QDEBUG_MACRO()
+#  define WARNING QT_NO_QDEBUG_MACRO()
+#  define CRITICAL QT_NO_QDEBUG_MACRO()
+#else
+#  define INFO qCInfo(lcSysApiLoader)
+#  define DEBUG qCDebug(lcSysApiLoader)
+#  define WARNING qCWarning(lcSysApiLoader)
+#  define CRITICAL qCCritical(lcSysApiLoader)
+#endif
+
+struct SysApiLoaderData
+{
+    QMutex mutex;
+    QHash<QString, std::optional<QFunctionPointer>> functionCache = {};
+};
+
+Q_GLOBAL_STATIC(SysApiLoaderData, g_loaderData)
 
 Q_GLOBAL_STATIC(SysApiLoader, g_sysApiLoader)
 
@@ -51,6 +90,21 @@ SysApiLoader *SysApiLoader::instance()
     return g_sysApiLoader();
 }
 
+QFunctionPointer SysApiLoader::resolve(const QString &library, const char *function)
+{
+    Q_ASSERT(!library.isEmpty());
+    Q_ASSERT(function);
+    if (library.isEmpty() || !function) {
+        return nullptr;
+    }
+#if SYSAPILOADER_QSYSTEMLIBRARY
+    return QSystemLibrary::resolve(library, function);
+#endif // SYSAPILOADER_QSYSTEMLIBRARY
+#if SYSAPILOADER_QLIBRARY
+    return QLibrary::resolve(library, function);
+#endif // SYSAPILOADER_QLIBRARY
+}
+
 QFunctionPointer SysApiLoader::resolve(const QString &library, const QByteArray &function)
 {
     Q_ASSERT(!library.isEmpty());
@@ -58,11 +112,7 @@ QFunctionPointer SysApiLoader::resolve(const QString &library, const QByteArray 
     if (library.isEmpty() || function.isEmpty()) {
         return nullptr;
     }
-#ifdef Q_OS_WINDOWS
-    return QSystemLibrary::resolve(library, function.constData());
-#else
-    return QLibrary::resolve(library, function.constData());
-#endif
+    return SysApiLoader::resolve(library, function.constData());
 }
 
 QFunctionPointer SysApiLoader::resolve(const QString &library, const QString &function)
@@ -82,17 +132,17 @@ bool SysApiLoader::isAvailable(const QString &library, const QString &function)
     if (library.isEmpty() || function.isEmpty()) {
         return false;
     }
-    QMutexLocker locker(&m_mutex);
-    if (m_functionCache.contains(function)) {
-        return m_functionCache.value(function).has_value();
+    const QMutexLocker locker(&g_loaderData()->mutex);
+    if (g_loaderData()->functionCache.contains(function)) {
+        return g_loaderData()->functionCache.value(function).has_value();
     }
     const QFunctionPointer symbol = SysApiLoader::resolve(library, function);
     if (symbol) {
-        m_functionCache.insert(function, symbol);
+        g_loaderData()->functionCache.insert(function, symbol);
         DEBUG << "Successfully loaded" << function << "from" << library;
         return true;
     }
-    m_functionCache.insert(function, std::nullopt);
+    g_loaderData()->functionCache.insert(function, std::nullopt);
     WARNING << "Failed to load" << function << "from" << library;
     return false;
 }
@@ -103,12 +153,9 @@ QFunctionPointer SysApiLoader::get(const QString &function)
     if (function.isEmpty()) {
         return nullptr;
     }
-    QMutexLocker locker(&m_mutex);
-    if (m_functionCache.contains(function)) {
-        const std::optional<QFunctionPointer> symbol = m_functionCache.value(function);
-        if (symbol.has_value()) {
-            return symbol.value();
-        }
+    const QMutexLocker locker(&g_loaderData()->mutex);
+    if (g_loaderData()->functionCache.contains(function)) {
+        return g_loaderData()->functionCache.value(function).value_or(nullptr);
     }
     return nullptr;
 }

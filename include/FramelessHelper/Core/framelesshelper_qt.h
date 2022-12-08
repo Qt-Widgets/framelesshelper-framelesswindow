@@ -1,7 +1,7 @@
 /*
  * MIT License
  *
- * Copyright (C) 2022 by wangwenx190 (Yuhang Zhao)
+ * Copyright (C) 2021-2023 by wangwenx190 (Yuhang Zhao)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,8 +25,6 @@
 #pragma once
 
 #include "framelesshelpercore_global.h"
-#include <QtCore/qobject.h>
-#include <QtCore/qloggingcategory.h>
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
 
@@ -42,6 +40,7 @@ public:
     ~FramelessHelperQt() override;
 
     static void addWindow(const Global::SystemParameters &params);
+    static void removeWindow(const WId windowId);
 
 protected:
     Q_NODISCARD bool eventFilter(QObject *object, QEvent *event) override;

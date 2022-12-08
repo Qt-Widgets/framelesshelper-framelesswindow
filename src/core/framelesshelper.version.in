@@ -1,7 +1,7 @@
 /*
  * MIT License
  *
- * Copyright (C) 2022 by wangwenx190 (Yuhang Zhao)
+ * Copyright (C) 2021-2023 by wangwenx190 (Yuhang Zhao)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -33,12 +33,12 @@
 
 #pragma once
 
-[[maybe_unused]] static constexpr const int FRAMELESSHELPER_VERSION_MAJOR = @PROJECT_VERSION_MAJOR@;
-[[maybe_unused]] static constexpr const int FRAMELESSHELPER_VERSION_MINOR = @PROJECT_VERSION_MINOR@;
-[[maybe_unused]] static constexpr const int FRAMELESSHELPER_VERSION_PATCH = @PROJECT_VERSION_PATCH@;
-[[maybe_unused]] static constexpr const int FRAMELESSHELPER_VERSION_TWEAK = @PROJECT_VERSION_TWEAK@;
-[[maybe_unused]] static constexpr const char FRAMELESSHELPER_VERSION_STR[] = "@PROJECT_VERSION@\0";
-[[maybe_unused]] static constexpr const char FRAMELESSHELPER_COMMIT_STR[] = "@PROJECT_VERSION_COMMIT@\0";
-[[maybe_unused]] static constexpr const char FRAMELESSHELPER_COMPILE_DATETIME[] = "@PROJECT_COMPILE_DATETIME@\0";
+[[maybe_unused]] inline constexpr const int FRAMELESSHELPER_VERSION_MAJOR = @PROJECT_VERSION_MAJOR@;
+[[maybe_unused]] inline constexpr const int FRAMELESSHELPER_VERSION_MINOR = @PROJECT_VERSION_MINOR@;
+[[maybe_unused]] inline constexpr const int FRAMELESSHELPER_VERSION_PATCH = @PROJECT_VERSION_PATCH@;
+[[maybe_unused]] inline constexpr const int FRAMELESSHELPER_VERSION_TWEAK = @PROJECT_VERSION_TWEAK@;
+[[maybe_unused]] inline constexpr const char FRAMELESSHELPER_VERSION_STR[] = "@PROJECT_VERSION@\0";
+[[maybe_unused]] inline constexpr const char FRAMELESSHELPER_COMMIT_STR[] = "@PROJECT_VERSION_COMMIT@\0";
+[[maybe_unused]] inline constexpr const char FRAMELESSHELPER_COMPILE_DATETIME_STR[] = "@PROJECT_COMPILE_DATETIME@\0";
 
 #endif // _FRAMELESSHELPER_VERSION_DEFINED_

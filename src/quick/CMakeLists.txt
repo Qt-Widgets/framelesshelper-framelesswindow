@@ -1,7 +1,7 @@
 #[[
   MIT License
 
-  Copyright (C) 2022 by wangwenx190 (Yuhang Zhao)
+  Copyright (C) 2021-2023 by wangwenx190 (Yuhang Zhao)
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
   of this software and associated documentation files (the "Software"), to deal
@@ -38,6 +38,8 @@ set(PUBLIC_HEADERS
     ${INCLUDE_PREFIX}/framelessquickutils.h
     ${INCLUDE_PREFIX}/quickchromepalette.h
     ${INCLUDE_PREFIX}/quickmicamaterial.h
+    ${INCLUDE_PREFIX}/quickimageitem.h
+    ${INCLUDE_PREFIX}/quickwindowborder.h
 )
 
 set(PUBLIC_HEADERS_ALIAS
@@ -47,6 +49,8 @@ set(PUBLIC_HEADERS_ALIAS
     ${INCLUDE_PREFIX}/FramelessQuickUtils
     ${INCLUDE_PREFIX}/QuickChromePalette
     ${INCLUDE_PREFIX}/QuickMicaMaterial
+    ${INCLUDE_PREFIX}/QuickImageItem
+    ${INCLUDE_PREFIX}/QuickWindowBorder
 )
 
 set(PRIVATE_HEADERS
@@ -55,7 +59,11 @@ set(PRIVATE_HEADERS
     ${INCLUDE_PREFIX}/private/framelessquickhelper_p.h
     ${INCLUDE_PREFIX}/private/framelessquickwindow_p.h
     ${INCLUDE_PREFIX}/private/framelessquickwindow_p_p.h
+    ${INCLUDE_PREFIX}/private/framelessquickapplicationwindow_p.h
+    ${INCLUDE_PREFIX}/private/framelessquickapplicationwindow_p_p.h
     ${INCLUDE_PREFIX}/private/quickmicamaterial_p.h
+    ${INCLUDE_PREFIX}/private/quickimageitem_p.h
+    ${INCLUDE_PREFIX}/private/quickwindowborder_p.h
 )
 
 set(SOURCES
@@ -64,10 +72,13 @@ set(SOURCES
     framelessquickutils.cpp
     framelessquickmodule.cpp
     framelessquickwindow.cpp
+    framelessquickapplicationwindow.cpp
     framelessquickhelper.cpp
     quickchromepalette.cpp
-    global.cpp
+    framelesshelperquick_global.cpp
     quickmicamaterial.cpp
+    quickimageitem.cpp
+    quickwindowborder.cpp
 )
 
 if(WIN32 AND NOT FRAMELESSHELPER_BUILD_STATIC)
@@ -91,7 +102,7 @@ add_library(${PROJECT_NAME}::${SUB_PROJ_NAME} ALIAS ${SUB_PROJ_NAME})
 add_library(${PROJECT_NAME}::${SUB_MOD_NAME} ALIAS ${SUB_PROJ_NAME})
 
 set(__import_base_dir ${PROJECT_BINARY_DIR}/qml)
-if(${FRAMELESSHELPER_IMPORT_DIR})
+if(DEFINED FRAMELESSHELPER_IMPORT_DIR)
     set(__import_base_dir ${FRAMELESSHELPER_IMPORT_DIR})
 endif()
 set(__import_uri org/wangwenx190/${PROJECT_NAME})
@@ -101,11 +112,11 @@ if(${QT_VERSION} VERSION_GREATER_EQUAL 6.2)
     qt_add_qml_module(${SUB_PROJ_NAME}
         URI org.wangwenx190.${PROJECT_NAME}
         VERSION 1.0
-        OUTPUT_DIRECTORY ${__import_dir}
+        OUTPUT_DIRECTORY "${__import_dir}"
         IMPORTS
-            QtQml
-            QtQuick
-            QtQuick.Controls.Basic
+            QtQml/auto
+            QtQuick/auto
+            QtQuick.Controls.Basic/auto
     )
     set(__lib_prefix)
     if(UNIX)
@@ -116,12 +127,20 @@ if(${QT_VERSION} VERSION_GREATER_EQUAL 6.2)
         set(__lib_suffix ${CMAKE_DEBUG_POSTFIX})
     endif()
     set(__lib_ext)
-    if(WIN32)
-        set(__lib_ext dll)
-    elseif(APPLE)
-        set(__lib_ext dylib)
-    elseif(UNIX)
-        set(__lib_ext so)
+    if(FRAMELESSHELPER_BUILD_STATIC)
+        if(WIN32)
+            set(__lib_ext lib)
+        else()
+            set(__lib_ext a)
+        endif()
+    else()
+        if(WIN32)
+            set(__lib_ext dll)
+        elseif(APPLE)
+            set(__lib_ext dylib)
+        elseif(UNIX)
+            set(__lib_ext so)
+        endif()
     endif()
     install(FILES
         "${__import_dir}/qmldir"
@@ -137,15 +156,39 @@ if(FRAMELESSHELPER_BUILD_STATIC)
     )
 endif()
 
+if(FRAMELESSHELPER_NO_DEBUG_OUTPUT)
+    target_compile_definitions(${SUB_PROJ_NAME} PRIVATE
+        FRAMELESSHELPER_QUICK_NO_DEBUG_OUTPUT
+    )
+endif()
+
+if(FRAMELESSHELPER_NO_BUNDLE_RESOURCE)
+    target_compile_definitions(${SUB_PROJ_NAME} PRIVATE
+        FRAMELESSHELPER_QUICK_NO_BUNDLE_RESOURCE
+    )
+endif()
+
+if(FRAMELESSHELPER_NO_PRIVATE)
+    target_compile_definitions(${SUB_PROJ_NAME} PRIVATE
+        FRAMELESSHELPER_QUICK_NO_PRIVATE
+    )
+endif()
+
 target_compile_definitions(${SUB_PROJ_NAME} PRIVATE
     FRAMELESSHELPER_QUICK_LIBRARY
 )
 
-target_link_libraries(${SUB_PROJ_NAME} PRIVATE
-    Qt${QT_VERSION_MAJOR}::QuickPrivate
-    Qt${QT_VERSION_MAJOR}::QuickTemplates2Private
-    Qt${QT_VERSION_MAJOR}::QuickControls2Private
-)
+if(FRAMELESSHELPER_NO_PRIVATE)
+    target_link_libraries(${SUB_PROJ_NAME} PRIVATE
+        Qt${QT_VERSION_MAJOR}::Quick
+    )
+else()
+    target_link_libraries(${SUB_PROJ_NAME} PRIVATE
+        Qt${QT_VERSION_MAJOR}::QuickPrivate
+        Qt${QT_VERSION_MAJOR}::QuickTemplates2Private
+        Qt${QT_VERSION_MAJOR}::QuickControls2Private
+    )
+endif()
 
 target_link_libraries(${SUB_PROJ_NAME} PUBLIC
     ${PROJECT_NAME}::Core
@@ -157,6 +200,8 @@ target_include_directories(${SUB_PROJ_NAME} PUBLIC
     "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${SUB_PROJ_PATH}>"
     "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${SUB_PROJ_PATH}/private>"
 )
+
+set(__DONT_DISABLE_QT_KEYWORDS ON)
 
 include(../core/cmakehelper.cmake)
 setup_compile_params(${SUB_PROJ_NAME})

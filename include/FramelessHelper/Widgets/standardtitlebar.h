@@ -1,7 +1,7 @@
 /*
  * MIT License
  *
- * Copyright (C) 2022 by wangwenx190 (Yuhang Zhao)
+ * Copyright (C) 2021-2023 by wangwenx190 (Yuhang Zhao)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,7 +25,7 @@
 #pragma once
 
 #include "framelesshelperwidgets_global.h"
-#include <QtCore/qloggingcategory.h>
+#include "standardsystembutton.h"
 #include <chromepalette.h>
 #include <QtWidgets/qwidget.h>
 
@@ -34,7 +34,6 @@ FRAMELESSHELPER_BEGIN_NAMESPACE
 Q_DECLARE_LOGGING_CATEGORY(lcStandardTitleBar)
 
 class StandardTitleBarPrivate;
-class StandardSystemButton;
 
 class FRAMELESSHELPER_WIDGETS_API StandardTitleBar : public QWidget
 {
@@ -49,6 +48,9 @@ class FRAMELESSHELPER_WIDGETS_API StandardTitleBar : public QWidget
     Q_PROPERTY(bool hideWhenClose READ isHideWhenClose WRITE setHideWhenClose NOTIFY hideWhenCloseChanged FINAL)
     Q_PROPERTY(ChromePalette* chromePalette READ chromePalette CONSTANT FINAL)
     Q_PROPERTY(bool titleLabelVisible READ titleLabelVisible WRITE setTitleLabelVisible NOTIFY titleLabelVisibleChanged FINAL)
+    Q_PROPERTY(QSize windowIconSize READ windowIconSize WRITE setWindowIconSize NOTIFY windowIconSizeChanged FINAL)
+    Q_PROPERTY(bool windowIconVisible READ windowIconVisible WRITE setWindowIconVisible NOTIFY windowIconVisibleChanged FINAL)
+    Q_PROPERTY(QFont titleFont READ titleFont WRITE setTitleFont NOTIFY titleFontChanged FINAL)
 
 public:
     explicit StandardTitleBar(QWidget *parent = nullptr);
@@ -72,14 +74,28 @@ public:
     Q_NODISCARD bool titleLabelVisible() const;
     void setTitleLabelVisible(const bool value);
 
+    Q_NODISCARD QSize windowIconSize() const;
+    void setWindowIconSize(const QSize &value);
+
+    Q_NODISCARD bool windowIconVisible() const;
+    void setWindowIconVisible(const bool value);
+
+    Q_NODISCARD QFont titleFont() const;
+    void setTitleFont(const QFont &value);
+
 protected:
     void paintEvent(QPaintEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
+    void mouseDoubleClickEvent(QMouseEvent *event) override;
 
 Q_SIGNALS:
     void extendedChanged();
     void titleLabelAlignmentChanged();
     void hideWhenCloseChanged();
     void titleLabelVisibleChanged();
+    void windowIconSizeChanged();
+    void windowIconVisibleChanged();
+    void titleFontChanged();
 
 private:
     QScopedPointer<StandardTitleBarPrivate> d_ptr;

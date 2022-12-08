@@ -1,7 +1,7 @@
 /*
  * MIT License
  *
- * Copyright (C) 2022 by wangwenx190 (Yuhang Zhao)
+ * Copyright (C) 2021-2023 by wangwenx190 (Yuhang Zhao)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,7 +25,6 @@
 #pragma once
 
 #include "framelesshelperquick_global.h"
-#include <QtCore/qloggingcategory.h>
 #include <QtQuick/qquickitem.h>
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
@@ -50,6 +49,8 @@ public:
 protected:
     void itemChange(const ItemChange change, const ItemChangeData &value) override;
     [[nodiscard]] QSGNode *updatePaintNode(QSGNode *old, UpdatePaintNodeData *data) override;
+    void classBegin() override;
+    void componentComplete() override;
 
 private:
     QScopedPointer<QuickMicaMaterialPrivate> d_ptr;

@@ -1,7 +1,7 @@
 /*
  * MIT License
  *
- * Copyright (C) 2022 by wangwenx190 (Yuhang Zhao)
+ * Copyright (C) 2021-2023 by wangwenx190 (Yuhang Zhao)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,12 +25,10 @@
 #pragma once
 
 #include "framelesshelperquick_global.h"
-#include <QtCore/qobject.h>
-#include <QtCore/qpointer.h>
+#include "quickmicamaterial.h"
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
 
-class QuickMicaMaterial;
 class WallpaperImageNode;
 
 class FRAMELESSHELPER_QUICK_API QuickMicaMaterialPrivate : public QObject

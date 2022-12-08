@@ -1,7 +1,7 @@
 /*
  * MIT License
  *
- * Copyright (C) 2022 by wangwenx190 (Yuhang Zhao)
+ * Copyright (C) 2021-2023 by wangwenx190 (Yuhang Zhao)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,13 +25,10 @@
 #pragma once
 
 #include "framelesshelpercore_global.h"
-#include <QtCore/qobject.h>
-#include <QtCore/qpointer.h>
+#include "micamaterial.h"
 #include <QtGui/qbrush.h>
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
-
-class MicaMaterial;
 
 class FRAMELESSHELPER_CORE_API MicaMaterialPrivate : public QObject
 {
@@ -49,11 +46,11 @@ public:
 public Q_SLOTS:
     void maybeGenerateBlurredWallpaper(const bool force = false);
     void updateMaterialBrush();
-    void paint(QPainter *painter, const QSize &size, const QPoint &pos) const;
-    Q_NODISCARD static MicaMaterial *attach(QObject *target);
+    void paint(QPainter *painter, const QSize &size, const QPoint &pos);
 
 private:
     void initialize();
+    void prepareGraphicsResources();
 
 private:
     QPointer<MicaMaterial> q_ptr = nullptr;
@@ -61,6 +58,7 @@ private:
     qreal tintOpacity = 0.0;
     qreal noiseOpacity = 0.0;
     QBrush micaBrush = {};
+    bool initialized = false;
 };
 
 FRAMELESSHELPER_END_NAMESPACE

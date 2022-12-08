@@ -1,7 +1,7 @@
 /*
  * MIT License
  *
- * Copyright (C) 2022 by wangwenx190 (Yuhang Zhao)
+ * Copyright (C) 2021-2023 by wangwenx190 (Yuhang Zhao)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,21 +25,31 @@
 #include "quickmicamaterial.h"
 #include "quickmicamaterial_p.h"
 #include <micamaterial.h>
-#include <QtCore/qdebug.h>
 #include <QtCore/qmutex.h>
 #include <QtGui/qscreen.h>
 #include <QtGui/qpainter.h>
 #include <QtGui/qguiapplication.h>
 #include <QtQuick/qquickwindow.h>
 #include <QtQuick/qsgsimpletexturenode.h>
+#ifndef FRAMELESSHELPER_QUICK_NO_PRIVATE
+#  include <QtQuick/private/qquickitem_p.h>
+#endif // FRAMELESSHELPER_QUICK_NO_PRIVATE
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
 
 Q_LOGGING_CATEGORY(lcQuickMicaMaterial, "wangwenx190.framelesshelper.quick.quickmicamaterial")
-#define INFO qCInfo(lcQuickMicaMaterial)
-#define DEBUG qCDebug(lcQuickMicaMaterial)
-#define WARNING qCWarning(lcQuickMicaMaterial)
-#define CRITICAL qCCritical(lcQuickMicaMaterial)
+
+#ifdef FRAMELESSHELPER_QUICK_NO_DEBUG_OUTPUT
+#  define INFO QT_NO_QDEBUG_MACRO()
+#  define DEBUG QT_NO_QDEBUG_MACRO()
+#  define WARNING QT_NO_QDEBUG_MACRO()
+#  define CRITICAL QT_NO_QDEBUG_MACRO()
+#else
+#  define INFO qCInfo(lcQuickMicaMaterial)
+#  define DEBUG qCDebug(lcQuickMicaMaterial)
+#  define WARNING qCWarning(lcQuickMicaMaterial)
+#  define CRITICAL qCCritical(lcQuickMicaMaterial)
+#endif
 
 using namespace Global;
 
@@ -71,7 +81,7 @@ private:
     QPointer<QuickMicaMaterial> m_item = nullptr;
     QSGSimpleTextureNode *m_node = nullptr;
     QPixmap m_pixmapCache = {};
-    QPointer<MicaMaterial> m_micaMaterial = nullptr;
+    QScopedPointer<MicaMaterial> m_micaMaterial;
 };
 
 WallpaperImageNode::WallpaperImageNode(QuickMicaMaterial *item)
@@ -91,7 +101,7 @@ void WallpaperImageNode::initialize()
     g_data()->mutex.lock();
 
     QQuickWindow * const window = m_item->window();
-    m_micaMaterial = MicaMaterial::attach(window);
+    m_micaMaterial.reset(new MicaMaterial);
 
     m_node = new QSGSimpleTextureNode;
     m_node->setFiltering(QSGTexture::Linear);
@@ -103,7 +113,7 @@ void WallpaperImageNode::initialize()
 
     appendChildNode(m_node);
 
-    connect(m_micaMaterial, &MicaMaterial::shouldRedraw, this, [this](){
+    connect(m_micaMaterial.data(), &MicaMaterial::shouldRedraw, this, [this](){
         maybeGenerateWallpaperImageCache(true);
     });
     connect(window, &QQuickWindow::beforeRendering, this,
@@ -114,7 +124,7 @@ void WallpaperImageNode::initialize()
 
 void WallpaperImageNode::maybeGenerateWallpaperImageCache(const bool force)
 {
-    QMutexLocker locker(&g_data()->mutex);
+    const QMutexLocker locker(&g_data()->mutex);
     if (!m_pixmapCache.isNull() && !force) {
         return;
     }
@@ -130,7 +140,7 @@ void WallpaperImageNode::maybeGenerateWallpaperImageCache(const bool force)
 
 void WallpaperImageNode::maybeUpdateWallpaperImageClipRect()
 {
-    QMutexLocker locker(&g_data()->mutex);
+    const QMutexLocker locker(&g_data()->mutex);
 #if (QT_VERSION >= QT_VERSION_CHECK(5, 10, 0))
     const QSizeF itemSize = m_item->size();
 #else
@@ -174,16 +184,25 @@ void QuickMicaMaterialPrivate::initialize()
 {
     Q_Q(QuickMicaMaterial);
     q->setFlag(QuickMicaMaterial::ItemHasContents);
+    q->setSmooth(true);
+    q->setAntialiasing(true);
     q->setClip(true);
 }
 
 void QuickMicaMaterialPrivate::rebindWindow()
 {
     Q_Q(QuickMicaMaterial);
-    QQuickWindow * const window = q->window();
+    const QQuickWindow * const window = q->window();
     if (!window) {
         return;
     }
+    QQuickItem * const rootItem = window->contentItem();
+    q->setParent(rootItem);
+    q->setParentItem(rootItem);
+#ifndef FRAMELESSHELPER_QUICK_NO_PRIVATE
+    QQuickItemPrivate::get(q)->anchors()->setFill(rootItem);
+#endif // FRAMELESSHELPER_QUICK_NO_PRIVATE
+    q->setZ(-999); // Make sure we always stays on the bottom most place.
     if (m_rootWindowXChangedConnection) {
         disconnect(m_rootWindowXChangedConnection);
         m_rootWindowXChangedConnection = {};
@@ -254,6 +273,16 @@ QSGNode *QuickMicaMaterial::updatePaintNode(QSGNode *old, UpdatePaintNodeData *d
         node = new WallpaperImageNode(this);
     }
     return node;
+}
+
+void QuickMicaMaterial::classBegin()
+{
+    QQuickItem::classBegin();
+}
+
+void QuickMicaMaterial::componentComplete()
+{
+    QQuickItem::componentComplete();
 }
 
 FRAMELESSHELPER_END_NAMESPACE

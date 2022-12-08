@@ -1,7 +1,7 @@
 /*
  * MIT License
  *
- * Copyright (C) 2022 by wangwenx190 (Yuhang Zhao)
+ * Copyright (C) 2021-2023 by wangwenx190 (Yuhang Zhao)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,11 +25,6 @@
 #pragma once
 
 #include "framelesshelpercore_global.h"
-#include <QtCore/qobject.h>
-#include <QtCore/qhash.h>
-#include <QtCore/qmutex.h>
-
-#include <optional>
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
 
@@ -44,6 +39,7 @@ public:
 
     Q_NODISCARD static SysApiLoader *instance();
 
+    Q_NODISCARD static QFunctionPointer resolve(const QString &library, const char *function);
     Q_NODISCARD static QFunctionPointer resolve(const QString &library, const QByteArray &function);
     Q_NODISCARD static QFunctionPointer resolve(const QString &library, const QString &function);
 
@@ -52,14 +48,10 @@ public:
     Q_NODISCARD QFunctionPointer get(const QString &function);
 
     template<typename T>
-    Q_NODISCARD inline T get(const QString &function)
+    Q_NODISCARD T get(const QString &function)
     {
         return reinterpret_cast<T>(get(function));
     }
-
-private:
-    static inline QMutex m_mutex;
-    static inline QHash<QString, std::optional<QFunctionPointer>> m_functionCache = {};
 };
 
 FRAMELESSHELPER_END_NAMESPACE
@@ -67,7 +59,8 @@ FRAMELESSHELPER_END_NAMESPACE
 Q_DECLARE_METATYPE2(FRAMELESSHELPER_PREPEND_NAMESPACE(SysApiLoader))
 
 #ifdef Q_OS_WINDOWS
-#  define API_WIN_AVAILABLE(lib, func) (SysApiLoader::instance()->isAvailable(k##lib, k##func))
+#  define API_WIN_AVAILABLE(lib, func) \
+  (FRAMELESSHELPER_PREPEND_NAMESPACE(SysApiLoader)::instance()->isAvailable(k##lib, k##func))
 #  define API_USER_AVAILABLE(func) API_WIN_AVAILABLE(user32, func)
 #  define API_THEME_AVAILABLE(func) API_WIN_AVAILABLE(uxtheme, func)
 #  define API_DWM_AVAILABLE(func) API_WIN_AVAILABLE(dwmapi, func)
@@ -78,4 +71,14 @@ Q_DECLARE_METATYPE2(FRAMELESSHELPER_PREPEND_NAMESPACE(SysApiLoader))
 #endif
 
 #define API_CALL_FUNCTION(func, ...) \
-  ((SysApiLoader::instance()->get<decltype(&::func)>(k##func))(__VA_ARGS__))
+  ((FRAMELESSHELPER_PREPEND_NAMESPACE(SysApiLoader)::instance()->get<decltype(&func)>(k##func))(__VA_ARGS__))
+
+#define API_CALL_FUNCTION2(func, type, ...) \
+  ((FRAMELESSHELPER_PREPEND_NAMESPACE(SysApiLoader)::instance()->get<type>(k##func))(__VA_ARGS__))
+
+#define API_CALL_FUNCTION3(func, name, ...) \
+  ((FRAMELESSHELPER_PREPEND_NAMESPACE(SysApiLoader)::instance()->get<decltype(&func)>(k##name))(__VA_ARGS__))
+
+#define API_CALL_FUNCTION4(func, ...) API_CALL_FUNCTION3(_##func, func, __VA_ARGS__)
+
+#define API_CALL_FUNCTION5(func, ...) API_CALL_FUNCTION3(func##2, func, __VA_ARGS__)

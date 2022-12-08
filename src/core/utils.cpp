@@ -1,7 +1,7 @@
 /*
  * MIT License
  *
- * Copyright (C) 2022 by wangwenx190 (Yuhang Zhao)
+ * Copyright (C) 2021-2023 by wangwenx190 (Yuhang Zhao)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,40 +23,57 @@
  */
 
 #include "utils.h"
-#include <QtCore/qdebug.h>
+#ifdef Q_OS_WINDOWS
+#  include "winverhelper_p.h"
+#endif // Q_OS_WINDOWS
 #include <QtGui/qwindow.h>
 #include <QtGui/qscreen.h>
 #include <QtGui/qguiapplication.h>
-#if (QT_VERSION >= QT_VERSION_CHECK(6, 2, 1))
+#ifndef FRAMELESSHELPER_CORE_NO_PRIVATE
+#  include <QtGui/private/qhighdpiscaling_p.h>
+#endif // FRAMELESSHELPER_CORE_NO_PRIVATE
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 5, 0))
+#  include <QtGui/qstylehints.h>
+#elif ((QT_VERSION >= QT_VERSION_CHECK(6, 2, 1)) && !defined(FRAMELESSHELPER_CORE_NO_PRIVATE))
 #  include <QtGui/qpa/qplatformtheme.h>
 #  include <QtGui/private/qguiapplication_p.h>
-#endif
+#endif // (QT_VERSION >= QT_VERSION_CHECK(6, 5, 0))
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
 
 Q_LOGGING_CATEGORY(lcUtilsCommon, "wangwenx190.framelesshelper.core.utils.common")
-#define INFO qCInfo(lcUtilsCommon)
-#define DEBUG qCDebug(lcUtilsCommon)
-#define WARNING qCWarning(lcUtilsCommon)
-#define CRITICAL qCCritical(lcUtilsCommon)
+
+#ifdef FRAMELESSHELPER_CORE_NO_DEBUG_OUTPUT
+#  define INFO QT_NO_QDEBUG_MACRO()
+#  define DEBUG QT_NO_QDEBUG_MACRO()
+#  define WARNING QT_NO_QDEBUG_MACRO()
+#  define CRITICAL QT_NO_QDEBUG_MACRO()
+#else
+#  define INFO qCInfo(lcUtilsCommon)
+#  define DEBUG qCDebug(lcUtilsCommon)
+#  define WARNING qCWarning(lcUtilsCommon)
+#  define CRITICAL qCCritical(lcUtilsCommon)
+#endif
 
 using namespace Global;
 
+#ifndef FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
 struct FONT_ICON
 {
-    quint32 segoe = 0;
-    quint32 micon = 0;
+    quint32 SegoeUI = 0;
+    quint32 Fallback = 0;
 };
 
 static const QHash<int, FONT_ICON> g_fontIconsTable = {
     {static_cast<int>(SystemButtonType::Unknown), {0x0000, 0x0000}},
-    {static_cast<int>(SystemButtonType::WindowIcon), {0xE756, 0xEB06}},
-    {static_cast<int>(SystemButtonType::Help), {0xE897, 0xEC04}},
-    {static_cast<int>(SystemButtonType::Minimize), {0xE921, 0xEAE0}},
-    {static_cast<int>(SystemButtonType::Maximize), {0xE922, 0xEADE}},
-    {static_cast<int>(SystemButtonType::Restore), {0xE923, 0xEAE2}},
-    {static_cast<int>(SystemButtonType::Close), {0xE8BB, 0xEADA}}
+    {static_cast<int>(SystemButtonType::WindowIcon), {0xE756, 0x0000}},
+    {static_cast<int>(SystemButtonType::Help), {0xE897, 0x0000}},
+    {static_cast<int>(SystemButtonType::Minimize), {0xE921, 0xE64C}},
+    {static_cast<int>(SystemButtonType::Maximize), {0xE922, 0xE64D}},
+    {static_cast<int>(SystemButtonType::Restore), {0xE923, 0xE64E}},
+    {static_cast<int>(SystemButtonType::Close), {0xE8BB, 0xE64F}}
 };
+#endif // FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
 
 Qt::CursorShape Utils::calculateCursorShape(const QWindow *window, const QPoint &pos)
 {
@@ -129,22 +146,27 @@ Qt::Edges Utils::calculateWindowEdges(const QWindow *window, const QPoint &pos)
 
 QString Utils::getSystemButtonIconCode(const SystemButtonType button)
 {
+#ifdef FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
+    return {};
+#else // !FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
     const auto index = static_cast<int>(button);
     if (!g_fontIconsTable.contains(index)) {
         WARNING << "FIXME: Add FONT_ICON value for button" << button;
         return {};
     }
     const FONT_ICON icon = g_fontIconsTable.value(index);
-#ifdef Q_OS_WINDOWS
+#  ifdef Q_OS_WINDOWS
     // Windows 11: Segoe Fluent Icons (https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-fluent-icons-font)
     // Windows 10: Segoe MDL2 Assets (https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font)
-    // Windows 7~8.1: Micon (http://xtoolkit.github.io/Micon/)
-    static const bool isWin10OrGreater = isWindowsVersionOrGreater(WindowsVersion::_10_1507);
-    if (isWin10OrGreater) {
-        return QChar(icon.segoe);
+    // Windows 7~8.1: Our own custom icon
+    if (WindowsVersionHelper::isWin10OrGreater()) {
+        return QChar(icon.SegoeUI);
     }
-#endif
-    return QChar(icon.micon);
+#  endif // Q_OS_WINDOWS
+    // We always use our own icons on UNIX platforms because Microsoft doesn't allow distributing
+    // the Segoe icon font to other platforms than Windows.
+    return QChar(icon.Fallback);
+#endif // FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
 }
 
 QWindow *Utils::findWindow(const WId windowId)
@@ -190,8 +212,8 @@ void Utils::moveWindowToDesktopCenter(const GetWindowScreenCallback &getWindowSc
     if (!screen) {
         return;
     }
-    const QSize screenSize = (considerTaskBar ? screen->availableSize() : screen->size());
-    const QPoint offset = (considerTaskBar ? screen->availableGeometry().topLeft() : QPoint(0, 0));
+    const QSize screenSize = (considerTaskBar ? screen->availableVirtualSize() : screen->virtualSize());
+    const QPoint offset = (considerTaskBar ? screen->availableVirtualGeometry().topLeft() : QPoint(0, 0));
     const int newX = qRound(qreal(screenSize.width() - windowSize.width()) / 2.0);
     const int newY = qRound(qreal(screenSize.height() - windowSize.height()) / 2.0);
     setWindowPosition(QPoint(newX + offset.x(), newY + offset.y()));
@@ -217,7 +239,7 @@ bool Utils::isThemeChangeEvent(const QEvent * const event)
     if (!event) {
         return false;
     }
-    // QGuiApplication will only deliver theme change events to top level QWindow(QQuickWindow)s,
+    // QGuiApplication will only deliver theme change events to top level Q(Quick)Windows,
     // QWidgets won't get such notifications, no matter whether it's top level widget or not.
     // QEvent::ThemeChange: Send by the Windows QPA.
     // QEvent::ApplicationPaletteChange: All other platforms (Linux & macOS).
@@ -233,7 +255,7 @@ QColor Utils::calculateSystemButtonBackgroundColor(const SystemButtonType button
     const bool isClose = (button == SystemButtonType::Close);
     const bool isTitleColor = isTitleBarColorized();
     const bool isHovered = (state == ButtonState::Hovered);
-    const QColor result = [isClose, isTitleColor]() -> QColor {
+    const auto result = [isClose, isTitleColor]() -> QColor {
         if (isClose) {
             return kDefaultSystemCloseButtonBackgroundColor;
         }
@@ -261,12 +283,14 @@ QColor Utils::calculateSystemButtonBackgroundColor(const SystemButtonType button
 
 bool Utils::shouldAppsUseDarkMode()
 {
-#if (QT_VERSION >= QT_VERSION_CHECK(6, 2, 1))
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 5, 0))
+    return (QGuiApplication::styleHints()->appearance() == Qt::Appearance::Dark);
+#elif ((QT_VERSION >= QT_VERSION_CHECK(6, 2, 1)) && !defined(FRAMELESSHELPER_CORE_NO_PRIVATE))
     if (const QPlatformTheme * const theme = QGuiApplicationPrivate::platformTheme()) {
         return (theme->appearance() == QPlatformTheme::Appearance::Dark);
     }
     return false;
-#else
+#else // ((QT_VERSION < QT_VERSION_CHECK(6, 2, 1)) || FRAMELESSHELPER_CORE_NO_PRIVATE)
 #  ifdef Q_OS_WINDOWS
     return shouldAppsUseDarkMode_windows();
 #  elif defined(Q_OS_LINUX)
@@ -277,6 +301,142 @@ bool Utils::shouldAppsUseDarkMode()
     return false;
 #  endif
 #endif
+}
+
+qreal Utils::roundScaleFactor(const qreal factor)
+{
+    // Qt can't handle scale factors less than 1.0 (according to the comments in qhighdpiscaling.cpp).
+    Q_ASSERT(factor >= 1);
+    if (factor < 1) {
+        return 1;
+    }
+#if (defined(FRAMELESSHELPER_CORE_NO_PRIVATE) || (QT_VERSION < QT_VERSION_CHECK(6, 2, 1)))
+#  if (QT_VERSION >= QT_VERSION_CHECK(5, 14, 0))
+    static const auto policy = QGuiApplication::highDpiScaleFactorRoundingPolicy();
+    switch (policy) {
+    case Qt::HighDpiScaleFactorRoundingPolicy::Round:
+        return qRound(factor);
+    case Qt::HighDpiScaleFactorRoundingPolicy::Ceil:
+        return qCeil(factor);
+    case Qt::HighDpiScaleFactorRoundingPolicy::Floor:
+        return qFloor(factor);
+    case Qt::HighDpiScaleFactorRoundingPolicy::RoundPreferFloor:
+        return (((factor - qreal(int(factor))) >= qreal(0.75)) ? qRound(factor) : qFloor(factor));
+    case Qt::HighDpiScaleFactorRoundingPolicy::PassThrough:
+    case Qt::HighDpiScaleFactorRoundingPolicy::Unset: // According to Qt source code, this enum value is the same with PassThrough.
+        return factor;
+    }
+    return 1;
+#  else // (QT_VERSION < QT_VERSION_CHECK(5, 14, 0))
+    return qRound(factor);
+#  endif // (QT_VERSION >= QT_VERSION_CHECK(5, 14, 0))
+#else // (!FRAMELESSHELPER_CORE_NO_PRIVATE && (QT_VERSION >= QT_VERSION_CHECK(6, 2, 1)))
+    return QHighDpiScaling::roundScaleFactor(factor);
+#endif // FRAMELESSHELPER_CORE_NO_PRIVATE
+}
+
+int Utils::toNativePixels(const QWindow *window, const int value)
+{
+    Q_ASSERT(window);
+    if (!window) {
+        return 0;
+    }
+#ifdef FRAMELESSHELPER_CORE_NO_PRIVATE
+    return qRound(qreal(value) * window->devicePixelRatio());
+#else // !FRAMELESSHELPER_CORE_NO_PRIVATE
+    return QHighDpi::toNativePixels(value, window);
+#endif // FRAMELESSHELPER_CORE_NO_PRIVATE
+}
+
+QPoint Utils::toNativePixels(const QWindow *window, const QPoint &point)
+{
+    Q_ASSERT(window);
+    if (!window) {
+        return {};
+    }
+#ifdef FRAMELESSHELPER_CORE_NO_PRIVATE
+    return QPointF(QPointF(point) * window->devicePixelRatio()).toPoint();
+#else // !FRAMELESSHELPER_CORE_NO_PRIVATE
+    return QHighDpi::toNativePixels(point, window);
+#endif // FRAMELESSHELPER_CORE_NO_PRIVATE
+}
+
+QSize Utils::toNativePixels(const QWindow *window, const QSize &size)
+{
+    Q_ASSERT(window);
+    if (!window) {
+        return {};
+    }
+#ifdef FRAMELESSHELPER_CORE_NO_PRIVATE
+    return QSizeF(QSizeF(size) * window->devicePixelRatio()).toSize();
+#else // !FRAMELESSHELPER_CORE_NO_PRIVATE
+    return QHighDpi::toNativePixels(size, window);
+#endif // FRAMELESSHELPER_CORE_NO_PRIVATE
+}
+
+QRect Utils::toNativePixels(const QWindow *window, const QRect &rect)
+{
+    Q_ASSERT(window);
+    if (!window) {
+        return {};
+    }
+#ifdef FRAMELESSHELPER_CORE_NO_PRIVATE
+    return QRect(toNativePixels(window, rect.topLeft()), toNativePixels(window, rect.size()));
+#else // !FRAMELESSHELPER_CORE_NO_PRIVATE
+    return QHighDpi::toNativePixels(rect, window);
+#endif // FRAMELESSHELPER_CORE_NO_PRIVATE
+}
+
+int Utils::fromNativePixels(const QWindow *window, const int value)
+{
+    Q_ASSERT(window);
+    if (!window) {
+        return 0;
+    }
+#ifdef FRAMELESSHELPER_CORE_NO_PRIVATE
+    return qRound(qreal(value) / window->devicePixelRatio());
+#else // !FRAMELESSHELPER_CORE_NO_PRIVATE
+    return QHighDpi::fromNativePixels(value, window);
+#endif // FRAMELESSHELPER_CORE_NO_PRIVATE
+}
+
+QPoint Utils::fromNativePixels(const QWindow *window, const QPoint &point)
+{
+    Q_ASSERT(window);
+    if (!window) {
+        return {};
+    }
+#ifdef FRAMELESSHELPER_CORE_NO_PRIVATE
+    return QPointF(QPointF(point) / window->devicePixelRatio()).toPoint();
+#else // !FRAMELESSHELPER_CORE_NO_PRIVATE
+    return QHighDpi::fromNativePixels(point, window);
+#endif // FRAMELESSHELPER_CORE_NO_PRIVATE
+}
+
+QSize Utils::fromNativePixels(const QWindow *window, const QSize &size)
+{
+    Q_ASSERT(window);
+    if (!window) {
+        return {};
+    }
+#ifdef FRAMELESSHELPER_CORE_NO_PRIVATE
+    return QSizeF(QSizeF(size) / window->devicePixelRatio()).toSize();
+#else // !FRAMELESSHELPER_CORE_NO_PRIVATE
+    return QHighDpi::fromNativePixels(size, window);
+#endif // FRAMELESSHELPER_CORE_NO_PRIVATE
+}
+
+QRect Utils::fromNativePixels(const QWindow *window, const QRect &rect)
+{
+    Q_ASSERT(window);
+    if (!window) {
+        return {};
+    }
+#ifdef FRAMELESSHELPER_CORE_NO_PRIVATE
+    return QRect(fromNativePixels(window, rect.topLeft()), fromNativePixels(window, rect.size()));
+#else // !FRAMELESSHELPER_CORE_NO_PRIVATE
+    return QHighDpi::fromNativePixels(rect, window);
+#endif // FRAMELESSHELPER_CORE_NO_PRIVATE
 }
 
 FRAMELESSHELPER_END_NAMESPACE

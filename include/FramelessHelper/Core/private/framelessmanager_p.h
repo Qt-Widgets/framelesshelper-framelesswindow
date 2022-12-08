@@ -1,7 +1,7 @@
 /*
  * MIT License
  *
- * Copyright (C) 2022 by wangwenx190 (Yuhang Zhao)
+ * Copyright (C) 2021-2023 by wangwenx190 (Yuhang Zhao)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,8 +26,6 @@
 
 #include "framelesshelpercore_global.h"
 #include "framelessmanager.h"
-#include <QtCore/qobject.h>
-#include <QtCore/qpointer.h>
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
 
@@ -53,9 +51,12 @@ public:
     Q_NODISCARD Global::WallpaperAspectStyle wallpaperAspectStyle() const;
 
     static void addWindow(const Global::SystemParameters &params);
+    static void removeWindow(const WId windowId);
 
     Q_INVOKABLE void notifySystemThemeHasChangedOrNot();
     Q_INVOKABLE void notifyWallpaperHasChangedOrNot();
+
+    Q_NODISCARD static bool usePureQtImplementation();
 
 private:
     void initialize();
@@ -65,7 +66,7 @@ private:
     Global::SystemTheme m_systemTheme = Global::SystemTheme::Unknown;
     QColor m_accentColor = {};
 #ifdef Q_OS_WINDOWS
-    Global::DwmColorizationArea m_colorizationArea = Global::DwmColorizationArea::None_;
+    Global::DwmColorizationArea m_colorizationArea = Global::DwmColorizationArea::None;
 #endif
     QString m_wallpaper = {};
     Global::WallpaperAspectStyle m_wallpaperAspectStyle = Global::WallpaperAspectStyle::Fill;

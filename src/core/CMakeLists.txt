@@ -1,7 +1,7 @@
 #[[
   MIT License
 
-  Copyright (C) 2022 by wangwenx190 (Yuhang Zhao)
+  Copyright (C) 2021-2023 by wangwenx190 (Yuhang Zhao)
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
   of this software and associated documentation files (the "Software"), to deal
@@ -45,6 +45,7 @@ set(PUBLIC_HEADERS
     ${INCLUDE_PREFIX}/utils.h
     ${INCLUDE_PREFIX}/chromepalette.h
     ${INCLUDE_PREFIX}/micamaterial.h
+    ${INCLUDE_PREFIX}/windowborderpainter.h
 )
 
 set(PUBLIC_HEADERS_ALIAS
@@ -54,6 +55,7 @@ set(PUBLIC_HEADERS_ALIAS
     ${INCLUDE_PREFIX}/Utils
     ${INCLUDE_PREFIX}/ChromePalette
     ${INCLUDE_PREFIX}/MicaMaterial
+    ${INCLUDE_PREFIX}/WindowBorderPainter
 )
 
 set(PRIVATE_HEADERS
@@ -62,18 +64,19 @@ set(PRIVATE_HEADERS
     ${INCLUDE_PREFIX}/private/sysapiloader_p.h
     ${INCLUDE_PREFIX}/private/chromepalette_p.h
     ${INCLUDE_PREFIX}/private/micamaterial_p.h
+    ${INCLUDE_PREFIX}/private/windowborderpainter_p.h
 )
 
 set(SOURCES
-    framelesshelpercore.qrc
     utils.cpp
     framelesshelper_qt.cpp
     framelessmanager.cpp
     framelessconfig.cpp
     sysapiloader.cpp
     chromepalette.cpp
-    global.cpp
+    framelesshelpercore_global.cpp
     micamaterial.cpp
+    windowborderpainter.cpp
 )
 
 if(WIN32)
@@ -85,9 +88,15 @@ if(WIN32)
         ${INCLUDE_PREFIX}/FramelessHelper_Windows
         ${INCLUDE_PREFIX}/FramelessHelper_Win
     )
+    list(APPEND PRIVATE_HEADERS
+        ${INCLUDE_PREFIX}/private/registrykey_p.h
+        ${INCLUDE_PREFIX}/private/winverhelper_p.h
+    )
     list(APPEND SOURCES
+        registrykey.cpp
         utils_win.cpp
         framelesshelper_win.cpp
+        winverhelper.cpp
     )
 elseif(APPLE)
     list(APPEND SOURCES utils_mac.mm)
@@ -115,14 +124,47 @@ endif()
 add_library(${PROJECT_NAME}::${SUB_PROJ_NAME} ALIAS ${SUB_PROJ_NAME})
 add_library(${PROJECT_NAME}::${SUB_MOD_NAME} ALIAS ${SUB_PROJ_NAME})
 
+if(NOT FRAMELESSHELPER_NO_BUNDLE_RESOURCE)
+    if(${QT_VERSION} VERSION_GREATER_EQUAL 6.2)
+        qt_add_resources(${SUB_PROJ_NAME} framelesshelpercore
+            PREFIX
+                "/org.wangwenx190.${PROJECT_NAME}"
+            FILES
+                "resources/fonts/iconfont.ttf"
+                "resources/images/noise.png"
+        )
+    else()
+        target_sources(${SUB_PROJ_NAME} PRIVATE
+            framelesshelpercore.qrc
+        )
+    endif()
+endif()
+
 if(FRAMELESSHELPER_BUILD_STATIC)
     target_compile_definitions(${SUB_PROJ_NAME} PUBLIC
         FRAMELESSHELPER_CORE_STATIC
     )
 endif()
 
+if(FRAMELESSHELPER_NO_DEBUG_OUTPUT)
+    target_compile_definitions(${SUB_PROJ_NAME} PRIVATE
+        FRAMELESSHELPER_CORE_NO_DEBUG_OUTPUT
+    )
+endif()
+
+if(FRAMELESSHELPER_NO_BUNDLE_RESOURCE)
+    target_compile_definitions(${SUB_PROJ_NAME} PRIVATE
+        FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
+    )
+endif()
+
+if(FRAMELESSHELPER_NO_PRIVATE)
+    target_compile_definitions(${SUB_PROJ_NAME} PRIVATE
+        FRAMELESSHELPER_CORE_NO_PRIVATE
+    )
+endif()
+
 target_compile_definitions(${SUB_PROJ_NAME} PRIVATE
-    QT_NO_KEYWORDS
     FRAMELESSHELPER_CORE_LIBRARY
 )
 
@@ -145,10 +187,17 @@ elseif(UNIX)
     )
 endif()
 
-target_link_libraries(${SUB_PROJ_NAME} PRIVATE
-    Qt${QT_VERSION_MAJOR}::CorePrivate
-    Qt${QT_VERSION_MAJOR}::GuiPrivate
-)
+if(FRAMELESSHELPER_NO_PRIVATE)
+    target_link_libraries(${SUB_PROJ_NAME} PRIVATE
+        Qt${QT_VERSION_MAJOR}::Core
+        Qt${QT_VERSION_MAJOR}::Gui
+    )
+else()
+    target_link_libraries(${SUB_PROJ_NAME} PRIVATE
+        Qt${QT_VERSION_MAJOR}::CorePrivate
+        Qt${QT_VERSION_MAJOR}::GuiPrivate
+    )
+endif()
 
 target_include_directories(${SUB_PROJ_NAME} PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${INCLUDE_PREFIX}>"

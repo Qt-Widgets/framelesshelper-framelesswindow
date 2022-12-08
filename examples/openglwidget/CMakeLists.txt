@@ -1,7 +1,7 @@
 #[[
   MIT License
 
-  Copyright (C) 2022 by wangwenx190 (Yuhang Zhao)
+  Copyright (C) 2021-2023 by wangwenx190 (Yuhang Zhao)
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
   of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +31,10 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
 endif()
 
 set(SOURCES
+    ../shared/log.h
+    ../shared/log.cpp
+    ../shared/settings.h
+    ../shared/settings.cpp
     images.qrc
     logo.h
     logo.cpp
@@ -43,7 +47,10 @@ set(SOURCES
 
 if(WIN32)
     enable_language(RC)
-    list(APPEND SOURCES ../example.rc ../example.manifest)
+    list(APPEND SOURCES
+        ../shared/example.rc
+        ../shared/example.manifest
+    )
 endif()
 
 add_executable(OpenGLWidget ${SOURCES})
@@ -60,11 +67,9 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     )
 endif()
 
-target_compile_definitions(OpenGLWidget PRIVATE
-    QT_NO_KEYWORDS
-)
-
 include(../../src/core/cmakehelper.cmake)
 setup_gui_app(OpenGLWidget)
 setup_compile_params(OpenGLWidget)
-deploy_qt_runtime(OpenGLWidget)
+if(FRAMELESSHELPER_EXAMPLES_DEPLOYQT)
+    deploy_qt_runtime(OpenGLWidget)
+endif()

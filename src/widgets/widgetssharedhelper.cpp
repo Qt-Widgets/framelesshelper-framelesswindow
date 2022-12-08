@@ -1,7 +1,7 @@
 /*
  * MIT License
  *
- * Copyright (C) 2022 by wangwenx190 (Yuhang Zhao)
+ * Copyright (C) 2021-2023 by wangwenx190 (Yuhang Zhao)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,17 +28,30 @@
 #include <QtGui/qpainter.h>
 #include <QtGui/qwindow.h>
 #include <QtWidgets/qwidget.h>
+#include <framelessconfig_p.h>
 #include <micamaterial.h>
 #include <micamaterial_p.h>
 #include <utils.h>
+#include <windowborderpainter.h>
+#ifdef Q_OS_WINDOWS
+#  include <winverhelper_p.h>
+#endif // Q_OS_WINDOWS
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
 
 Q_LOGGING_CATEGORY(lcWidgetsSharedHelper, "wangwenx190.framelesshelper.widgets.widgetssharedhelper")
-#define INFO qCInfo(lcWidgetsSharedHelper)
-#define DEBUG qCDebug(lcWidgetsSharedHelper)
-#define WARNING qCWarning(lcWidgetsSharedHelper)
-#define CRITICAL qCCritical(lcWidgetsSharedHelper)
+
+#ifdef FRAMELESSHELPER_WIDGETS_NO_DEBUG_OUTPUT
+#  define INFO QT_NO_QDEBUG_MACRO()
+#  define DEBUG QT_NO_QDEBUG_MACRO()
+#  define WARNING QT_NO_QDEBUG_MACRO()
+#  define CRITICAL QT_NO_QDEBUG_MACRO()
+#else
+#  define INFO qCInfo(lcWidgetsSharedHelper)
+#  define DEBUG qCDebug(lcWidgetsSharedHelper)
+#  define WARNING qCWarning(lcWidgetsSharedHelper)
+#  define CRITICAL qCCritical(lcWidgetsSharedHelper)
+#endif
 
 using namespace Global;
 
@@ -54,16 +67,27 @@ void WidgetsSharedHelper::setup(QWidget *widget)
     if (!widget) {
         return;
     }
-    if (m_targetWidget == widget) {
+    if (m_targetWidget && (m_targetWidget == widget)) {
         return;
     }
     m_targetWidget = widget;
-    m_micaMaterial = MicaMaterial::attach(m_targetWidget);
+    m_borderPainter.reset(new WindowBorderPainter);
+    if (m_borderRepaintConnection) {
+        disconnect(m_borderRepaintConnection);
+        m_borderRepaintConnection = {};
+    }
+    m_borderRepaintConnection = connect(m_borderPainter.data(),
+        &WindowBorderPainter::shouldRepaint, this, [this](){
+            if (m_targetWidget) {
+                m_targetWidget->update();
+            }
+        });
+    m_micaMaterial.reset(new MicaMaterial);
     if (m_micaRedrawConnection) {
         disconnect(m_micaRedrawConnection);
         m_micaRedrawConnection = {};
     }
-    m_micaRedrawConnection = connect(m_micaMaterial, &MicaMaterial::shouldRedraw,
+    m_micaRedrawConnection = connect(m_micaMaterial.data(), &MicaMaterial::shouldRedraw,
         this, [this](){
             if (m_targetWidget) {
                 m_targetWidget->update();
@@ -78,7 +102,12 @@ void WidgetsSharedHelper::setup(QWidget *widget)
     QScreen *screen = m_targetWidget->windowHandle()->screen();
 #endif
     handleScreenChanged(screen);
-    connect(m_targetWidget->windowHandle(), &QWindow::screenChanged, this, &WidgetsSharedHelper::handleScreenChanged);
+    if (m_screenChangeConnection) {
+        disconnect(m_screenChangeConnection);
+        m_screenChangeConnection = {};
+    }
+    m_screenChangeConnection = connect(m_targetWidget->windowHandle(),
+        &QWindow::screenChanged, this, &WidgetsSharedHelper::handleScreenChanged);
 }
 
 bool WidgetsSharedHelper::isMicaEnabled() const
@@ -96,6 +125,16 @@ void WidgetsSharedHelper::setMicaEnabled(const bool value)
         m_targetWidget->update();
     }
     Q_EMIT micaEnabledChanged();
+}
+
+MicaMaterial *WidgetsSharedHelper::rawMicaMaterial() const
+{
+    return (m_micaMaterial.isNull() ? nullptr : m_micaMaterial.data());
+}
+
+WindowBorderPainter *WidgetsSharedHelper::rawWindowBorder() const
+{
+    return (m_borderPainter.isNull() ? nullptr : m_borderPainter.data());
 }
 
 bool WidgetsSharedHelper::eventFilter(QObject *object, QEvent *event)
@@ -120,15 +159,15 @@ bool WidgetsSharedHelper::eventFilter(QObject *object, QEvent *event)
         const auto paintEvent = static_cast<QPaintEvent *>(event);
         paintEventHandler(paintEvent);
     } break;
-    case QEvent::WindowStateChange: {
+    case QEvent::WindowStateChange:
         changeEventHandler(event);
-    } break;
+        break;
     case QEvent::Move:
-    case QEvent::Resize: {
+    case QEvent::Resize:
         if (m_micaEnabled) {
             m_targetWidget->update();
         }
-    } break;
+        break;
     default:
         break;
     }
@@ -145,46 +184,47 @@ void WidgetsSharedHelper::changeEventHandler(QEvent *event)
         return;
     }
     updateContentsMargins();
-    QMetaObject::invokeMethod(m_targetWidget, "hiddenChanged");
-    QMetaObject::invokeMethod(m_targetWidget, "normalChanged");
-    QMetaObject::invokeMethod(m_targetWidget, "zoomedChanged");
+    if (const auto mo = m_targetWidget->metaObject()) {
+        if (const int idx = mo->indexOfSignal(QMetaObject::normalizedSignature("hiddenChanged()").constData()); idx >= 0) {
+            QMetaObject::invokeMethod(m_targetWidget, "hiddenChanged");
+        }
+        if (const int idx = mo->indexOfSignal(QMetaObject::normalizedSignature("normalChanged()").constData()); idx >= 0) {
+            QMetaObject::invokeMethod(m_targetWidget, "normalChanged");
+        }
+        if (const int idx = mo->indexOfSignal(QMetaObject::normalizedSignature("zoomedChanged()").constData()); idx >= 0) {
+            QMetaObject::invokeMethod(m_targetWidget, "zoomedChanged");
+        }
+    }
+#ifdef Q_OS_WINDOWS
+    if (!FramelessConfig::instance()->isSet(Option::UseCrossPlatformQtImplementation)) {
+        if (Utils::windowStatesToWindowState(m_targetWidget->windowState()) != Qt::WindowFullScreen) {
+            const auto changeEvent = static_cast<QWindowStateChangeEvent *>(event);
+            if (Utils::windowStatesToWindowState(changeEvent->oldState()) == Qt::WindowFullScreen) {
+                Utils::maybeFixupQtInternals(m_targetWidget->winId());
+            }
+        }
+    }
+#endif
 }
 
 void WidgetsSharedHelper::paintEventHandler(QPaintEvent *event)
 {
-    Q_UNUSED(event);
+    Q_ASSERT(event);
+    if (!event) {
+        return;
+    }
     if (m_micaEnabled && m_micaMaterial) {
         QPainter painter(m_targetWidget);
         m_micaMaterial->paint(&painter, m_targetWidget->size(),
             m_targetWidget->mapToGlobal(QPoint(0, 0)));
     }
-#ifdef Q_OS_WINDOWS
-    if (shouldDrawFrameBorder()) {
+    if ((Utils::windowStatesToWindowState(m_targetWidget->windowState()) == Qt::WindowNoState)
+            && !m_borderPainter.isNull()) {
         QPainter painter(m_targetWidget);
-        painter.save();
-        QPen pen = {};
-        pen.setColor(Utils::getFrameBorderColor(m_targetWidget->isActiveWindow()));
-        pen.setWidth(kDefaultWindowFrameBorderThickness);
-        painter.setPen(pen);
-        // In fact, we should use "m_targetWidget->width() - 1" here but we can't
-        // because Qt's drawing system has some rounding errors internally and if
-        // we minus one here we'll get a one pixel gap, so sad. But drawing a line
-        // with a little extra pixels won't hurt anyway.
-        painter.drawLine(0, 0, m_targetWidget->width(), 0);
-        painter.restore();
+        m_borderPainter->paint(&painter, m_targetWidget->size(), m_targetWidget->isActiveWindow());
     }
-#endif
-}
-
-bool WidgetsSharedHelper::shouldDrawFrameBorder() const
-{
-#ifdef Q_OS_WINDOWS
-    static const bool isWin11OrGreater = Utils::isWindowsVersionOrGreater(WindowsVersion::_11_21H2);
-    return (Utils::isWindowFrameBorderVisible() && !isWin11OrGreater
-            && (Utils::windowStatesToWindowState(m_targetWidget->windowState()) == Qt::WindowNoState));
-#else
-    return false;
-#endif
+    // Don't eat this event here, we need Qt to keep dispatching this paint event
+    // otherwise the widget won't paint anything else from the user side.
 }
 
 void WidgetsSharedHelper::handleScreenChanged(QScreen *screen)
@@ -214,8 +254,8 @@ void WidgetsSharedHelper::handleScreenChanged(QScreen *screen)
                 return;
             }
             m_screenDpr = currentDpr;
-            if (m_micaEnabled && m_micaMaterial) {
-                MicaMaterialPrivate::get(m_micaMaterial)->maybeGenerateBlurredWallpaper(true);
+            if (m_micaEnabled && !m_micaMaterial.isNull()) {
+                MicaMaterialPrivate::get(m_micaMaterial.data())->maybeGenerateBlurredWallpaper(true);
             }
         });
 }
@@ -223,7 +263,16 @@ void WidgetsSharedHelper::handleScreenChanged(QScreen *screen)
 void WidgetsSharedHelper::updateContentsMargins()
 {
 #ifdef Q_OS_WINDOWS
-    m_targetWidget->setContentsMargins(0, (shouldDrawFrameBorder() ? kDefaultWindowFrameBorderThickness : 0), 0, 0);
+    const auto margins = [this]() -> QMargins {
+        if (!Utils::isWindowFrameBorderVisible() || WindowsVersionHelper::isWin11OrGreater()) {
+            return {};
+        }
+        if (Utils::windowStatesToWindowState(m_targetWidget->windowState()) != Qt::WindowNoState) {
+            return {};
+        }
+        return {0, kDefaultWindowFrameBorderThickness, 0, 0};
+    }();
+    m_targetWidget->setContentsMargins(margins);
 #endif
 }
 

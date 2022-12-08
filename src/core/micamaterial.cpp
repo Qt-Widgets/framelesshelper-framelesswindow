@@ -1,7 +1,7 @@
 /*
  * MIT License
  *
- * Copyright (C) 2022 by wangwenx190 (Yuhang Zhao)
+ * Copyright (C) 2021-2023 by wangwenx190 (Yuhang Zhao)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,7 +26,7 @@
 #include "micamaterial_p.h"
 #include "framelessmanager.h"
 #include "utils.h"
-#include <QtCore/qdebug.h>
+#include "framelessconfig_p.h"
 #include <QtCore/qsysinfo.h>
 #include <QtCore/qmutex.h>
 #include <QtGui/qpixmap.h>
@@ -34,9 +34,12 @@
 #include <QtGui/qpainter.h>
 #include <QtGui/qscreen.h>
 #include <QtGui/qguiapplication.h>
-#include <QtGui/private/qguiapplication_p.h>
-#include <QtGui/private/qmemrotate_p.h>
+#ifndef FRAMELESSHELPER_CORE_NO_PRIVATE
+#  include <QtGui/private/qguiapplication_p.h>
+#  include <QtGui/private/qmemrotate_p.h>
+#endif // FRAMELESSHELPER_CORE_NO_PRIVATE
 
+#ifndef FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
 // The "Q_INIT_RESOURCE()" macro can't be used within a namespace,
 // so we wrap it into a separate function outside of the namespace and
 // then call it instead inside the namespace, that's also the recommended
@@ -45,41 +48,63 @@ static inline void initResource()
 {
     Q_INIT_RESOURCE(framelesshelpercore);
 }
+#endif // FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
 
 Q_LOGGING_CATEGORY(lcMicaMaterial, "wangwenx190.framelesshelper.core.micamaterial")
-#define INFO qCInfo(lcMicaMaterial)
-#define DEBUG qCDebug(lcMicaMaterial)
-#define WARNING qCWarning(lcMicaMaterial)
-#define CRITICAL qCCritical(lcMicaMaterial)
+
+#ifdef FRAMELESSHELPER_CORE_NO_DEBUG_OUTPUT
+#  define INFO QT_NO_QDEBUG_MACRO()
+#  define DEBUG QT_NO_QDEBUG_MACRO()
+#  define WARNING QT_NO_QDEBUG_MACRO()
+#  define CRITICAL QT_NO_QDEBUG_MACRO()
+#else
+#  define INFO qCInfo(lcMicaMaterial)
+#  define DEBUG qCDebug(lcMicaMaterial)
+#  define WARNING qCWarning(lcMicaMaterial)
+#  define CRITICAL qCCritical(lcMicaMaterial)
+#endif
 
 using namespace Global;
 
-static constexpr const qreal kDefaultTintOpacity = 0.7;
-static constexpr const qreal kDefaultNoiseOpacity = 0.04;
-static constexpr const qreal kDefaultBlurRadius = 128.0;
+[[maybe_unused]] static constexpr const qreal kDefaultTintOpacity = 0.7;
+[[maybe_unused]] static constexpr const qreal kDefaultNoiseOpacity = 0.04;
+[[maybe_unused]] static constexpr const qreal kDefaultBlurRadius = 128.0;
 
+[[maybe_unused]] static Q_CONSTEXPR2 const QColor kDefaultSystemLightColor2 = {243, 243, 243}; // #F3F3F3
+
+#ifndef FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
 FRAMELESSHELPER_STRING_CONSTANT2(NoiseImageFilePath, ":/org.wangwenx190.FramelessHelper/resources/images/noise.png")
+#endif // FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
 
 struct MicaMaterialData
 {
     QMutex mutex;
     QPixmap blurredWallpaper = {};
+    bool graphicsResourcesReady = false;
 };
 
 Q_GLOBAL_STATIC(MicaMaterialData, g_micaMaterialData)
 
-template<const int shift>
-[[nodiscard]] static inline int qt_static_shift(const int value)
+#ifdef FRAMELESSHELPER_CORE_NO_PRIVATE
+[[nodiscard]] static inline Qt::Alignment visualAlignment
+    (const Qt::LayoutDirection direction, const Qt::Alignment alignment)
 {
-    if (shift == 0) {
+    Q_UNUSED(direction);
+    return alignment;
+}
+#else // !FRAMELESSHELPER_CORE_NO_PRIVATE
+template<const int shift>
+[[nodiscard]] static inline constexpr int qt_static_shift(const int value)
+{
+    if constexpr (shift == 0) {
         return value;
-    }
-    if (shift > 0) {
+    } else if constexpr (shift > 0) {
         return (value << (quint32(shift) & 0x1f));
+    } else {
+        return (value >> (quint32(-shift) & 0x1f));
     }
-    return (value >> (quint32(-shift) & 0x1f));
 }
 
 template<const int aprec, const int zprec>
@@ -130,9 +155,16 @@ static inline void qt_blurrow(QImage &im, const int line, const int alpha)
 
     int zR = 0, zG = 0, zB = 0, zA = 0;
 
+#ifdef Q_CC_MSVC
+#  pragma warning(push)
+#  pragma warning(disable:4127) // false alarm.
+#endif // Q_CC_MSVC
     if (alphaOnly && (im.format() != QImage::Format_Indexed8)) {
         bptr += alphaIndex;
     }
+#ifdef Q_CC_MSVC
+#  pragma warning(pop)
+#endif // Q_CC_MSVC
 
     const int stride = (im.depth() >> 3);
     const int im_width = im.width();
@@ -381,15 +413,17 @@ static inline void expblur(QImage &img, qreal radius, const bool improvedQuality
     }
 
     if (p) {
-        p->scale(scale, scale);
+        p->save();
         p->setRenderHints(QPainter::Antialiasing |
             QPainter::TextAntialiasing | QPainter::SmoothPixmapTransform);
+        p->scale(scale, scale);
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 2, 0))
         const QSize imageSize = blurImage.deviceIndependentSize().toSize();
 #else
         const QSize imageSize = QSizeF(QSizeF(blurImage.size()) / blurImage.devicePixelRatio()).toSize();
 #endif
         p->drawImage(QRect(QPoint(0, 0), imageSize), blurImage);
+        p->restore();
     }
 }
 
@@ -420,6 +454,7 @@ static inline void expblur(QImage &img, qreal radius, const bool improvedQuality
 {
     return QGuiApplicationPrivate::visualAlignment(direction, alignment);
 }
+#endif // FRAMELESSHELPER_CORE_NO_PRIVATE
 
 /*!
     Returns a new rectangle of the specified \a size that is aligned to the given
@@ -523,20 +558,25 @@ void MicaMaterialPrivate::maybeGenerateBlurredWallpaper(const bool force)
     const QRect desktopRect = {desktopOriginPoint, size};
     if (aspectStyle == WallpaperAspectStyle::Tile) {
         QPainter bufferPainter(&buffer);
-        const QBrush brush(image);
-        bufferPainter.fillRect(desktopRect, brush);
+        bufferPainter.setRenderHints(QPainter::Antialiasing |
+            QPainter::TextAntialiasing | QPainter::SmoothPixmapTransform);
+        bufferPainter.fillRect(desktopRect, QBrush(image));
     } else {
         QPainter bufferPainter(&buffer);
+        bufferPainter.setRenderHints(QPainter::Antialiasing |
+            QPainter::TextAntialiasing | QPainter::SmoothPixmapTransform);
         const QRect rect = alignedRect(Qt::LeftToRight, Qt::AlignCenter, image.size(), desktopRect);
         bufferPainter.drawImage(rect.topLeft(), image);
     }
     g_micaMaterialData()->mutex.lock();
     QPainter painter(&g_micaMaterialData()->blurredWallpaper);
-#if 1
-    qt_blurImage(&painter, buffer, kDefaultBlurRadius, true, false);
-#else
+    painter.setRenderHints(QPainter::Antialiasing |
+        QPainter::TextAntialiasing | QPainter::SmoothPixmapTransform);
+#ifdef FRAMELESSHELPER_CORE_NO_PRIVATE
     painter.drawImage(desktopOriginPoint, buffer);
-#endif
+#else // !FRAMELESSHELPER_CORE_NO_PRIVATE
+    qt_blurImage(&painter, buffer, kDefaultBlurRadius, true, false);
+#endif // FRAMELESSHELPER_CORE_NO_PRIVATE
     g_micaMaterialData()->mutex.unlock();
     Q_Q(MicaMaterial);
     Q_EMIT q->shouldRedraw();
@@ -544,31 +584,42 @@ void MicaMaterialPrivate::maybeGenerateBlurredWallpaper(const bool force)
 
 void MicaMaterialPrivate::updateMaterialBrush()
 {
+#ifndef FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
     initResource();
     static const QImage noiseTexture = QImage(kNoiseImageFilePath);
+#endif // FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
     QImage micaTexture = QImage(QSize(64, 64), QImage::Format_ARGB32_Premultiplied);
-    QColor fillColor = (Utils::shouldAppsUseDarkMode() ? kDefaultSystemDarkColor : kDefaultSystemLightColor);
+    QColor fillColor = (Utils::shouldAppsUseDarkMode() ? kDefaultSystemDarkColor : kDefaultSystemLightColor2);
     fillColor.setAlphaF(0.9f);
     micaTexture.fill(fillColor);
     QPainter painter(&micaTexture);
+    painter.setRenderHints(QPainter::Antialiasing |
+        QPainter::TextAntialiasing | QPainter::SmoothPixmapTransform);
     painter.setOpacity(tintOpacity);
     const QRect rect = {QPoint(0, 0), micaTexture.size()};
     painter.fillRect(rect, tintColor);
     painter.setOpacity(noiseOpacity);
+#ifndef FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
     painter.fillRect(rect, QBrush(noiseTexture));
+#endif // FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
     micaBrush = QBrush(micaTexture);
-    Q_Q(MicaMaterial);
-    Q_EMIT q->shouldRedraw();
+    if (initialized) {
+        Q_Q(MicaMaterial);
+        Q_EMIT q->shouldRedraw();
+    }
 }
 
-void MicaMaterialPrivate::paint(QPainter *painter, const QSize &size, const QPoint &pos) const
+void MicaMaterialPrivate::paint(QPainter *painter, const QSize &size, const QPoint &pos)
 {
     Q_ASSERT(painter);
     if (!painter) {
         return;
     }
+    prepareGraphicsResources();
     static constexpr const QPoint originPoint = {0, 0};
     painter->save();
+    painter->setRenderHints(QPainter::Antialiasing |
+        QPainter::TextAntialiasing | QPainter::SmoothPixmapTransform);
     g_micaMaterialData()->mutex.lock();
     painter->drawPixmap(originPoint, g_micaMaterialData()->blurredWallpaper, QRect(pos, size));
     g_micaMaterialData()->mutex.unlock();
@@ -578,24 +629,13 @@ void MicaMaterialPrivate::paint(QPainter *painter, const QSize &size, const QPoi
     painter->restore();
 }
 
-MicaMaterial *MicaMaterialPrivate::attach(QObject *target)
-{
-    Q_ASSERT(target);
-    if (!target) {
-        return nullptr;
-    }
-    if (const auto instance = target->findChild<MicaMaterial *>()) {
-        return instance;
-    }
-    const auto instance = new MicaMaterial(target);
-    return instance;
-}
-
 void MicaMaterialPrivate::initialize()
 {
     tintColor = kDefaultTransparentColor;
     tintOpacity = kDefaultTintOpacity;
     noiseOpacity = kDefaultNoiseOpacity;
+
+    updateMaterialBrush();
 
     connect(FramelessManager::instance(), &FramelessManager::systemThemeChanged,
         this, &MicaMaterialPrivate::updateMaterialBrush);
@@ -604,8 +644,23 @@ void MicaMaterialPrivate::initialize()
             maybeGenerateBlurredWallpaper(true);
         });
 
+    if (FramelessConfig::instance()->isSet(Option::DisableLazyInitializationForMicaMaterial)) {
+        prepareGraphicsResources();
+    }
+
+    initialized = true;
+}
+
+void MicaMaterialPrivate::prepareGraphicsResources()
+{
+    g_micaMaterialData()->mutex.lock();
+    if (g_micaMaterialData()->graphicsResourcesReady) {
+        g_micaMaterialData()->mutex.unlock();
+        return;
+    }
+    g_micaMaterialData()->graphicsResourcesReady = true;
+    g_micaMaterialData()->mutex.unlock();
     maybeGenerateBlurredWallpaper();
-    updateMaterialBrush();
 }
 
 MicaMaterial::MicaMaterial(QObject *parent)
@@ -631,6 +686,7 @@ void MicaMaterial::setTintColor(const QColor &value)
     if (d->tintColor == value) {
         return;
     }
+    d->prepareGraphicsResources();
     d->tintColor = value;
     d->updateMaterialBrush();
     Q_EMIT tintColorChanged();
@@ -648,6 +704,7 @@ void MicaMaterial::setTintOpacity(const qreal value)
     if (qFuzzyCompare(d->tintOpacity, value)) {
         return;
     }
+    d->prepareGraphicsResources();
     d->tintOpacity = value;
     d->updateMaterialBrush();
     Q_EMIT tintOpacityChanged();
@@ -665,20 +722,16 @@ void MicaMaterial::setNoiseOpacity(const qreal value)
     if (qFuzzyCompare(d->noiseOpacity, value)) {
         return;
     }
+    d->prepareGraphicsResources();
     d->noiseOpacity = value;
     d->updateMaterialBrush();
     Q_EMIT noiseOpacityChanged();
 }
 
-void MicaMaterial::paint(QPainter *painter, const QSize &size, const QPoint &pos) const
+void MicaMaterial::paint(QPainter *painter, const QSize &size, const QPoint &pos)
 {
-    Q_D(const MicaMaterial);
+    Q_D(MicaMaterial);
     d->paint(painter, size, pos);
-}
-
-MicaMaterial *MicaMaterial::attach(QObject *target)
-{
-    return MicaMaterialPrivate::attach(target);
 }
 
 FRAMELESSHELPER_END_NAMESPACE

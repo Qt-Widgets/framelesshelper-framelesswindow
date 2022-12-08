@@ -1,7 +1,7 @@
 /*
  * MIT License
  *
- * Copyright (C) 2022 by wangwenx190 (Yuhang Zhao)
+ * Copyright (C) 2021-2023 by wangwenx190 (Yuhang Zhao)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,10 +31,18 @@
 FRAMELESSHELPER_BEGIN_NAMESPACE
 
 Q_LOGGING_CATEGORY(lcFramelessConfig, "wangwenx190.framelesshelper.core.framelessconfig")
-#define INFO qCInfo(lcFramelessConfig)
-#define DEBUG qCDebug(lcFramelessConfig)
-#define WARNING qCWarning(lcFramelessConfig)
-#define CRITICAL qCCritical(lcFramelessConfig)
+
+#ifdef FRAMELESSHELPER_CORE_NO_DEBUG_OUTPUT
+#  define INFO QT_NO_QDEBUG_MACRO()
+#  define DEBUG QT_NO_QDEBUG_MACRO()
+#  define WARNING QT_NO_QDEBUG_MACRO()
+#  define CRITICAL QT_NO_QDEBUG_MACRO()
+#else
+#  define INFO qCInfo(lcFramelessConfig)
+#  define DEBUG qCDebug(lcFramelessConfig)
+#  define WARNING qCWarning(lcFramelessConfig)
+#  define CRITICAL qCCritical(lcFramelessConfig)
+#endif
 
 using namespace Global;
 
@@ -60,7 +68,9 @@ static const struct
     {FRAMELESSHELPER_BYTEARRAY_LITERAL("FRAMELESSHELPER_ENABLE_BLUR_BEHIND_WINDOW"),
       FRAMELESSHELPER_BYTEARRAY_LITERAL("Options/EnableBlurBehindWindow")},
     {FRAMELESSHELPER_BYTEARRAY_LITERAL("FRAMELESSHELPER_FORCE_NON_NATIVE_BACKGROUND_BLUR"),
-      FRAMELESSHELPER_BYTEARRAY_LITERAL("Options/ForceNonNativeBackgroundBlur")}
+      FRAMELESSHELPER_BYTEARRAY_LITERAL("Options/ForceNonNativeBackgroundBlur")},
+    {FRAMELESSHELPER_BYTEARRAY_LITERAL("FRAMELESSHELPER_DISABLE_LAZY_INITIALIZATION_FOR_MICA_MATERIAL"),
+      FRAMELESSHELPER_BYTEARRAY_LITERAL("Options/DisableLazyInitializationForMicaMaterial")}
 };
 
 static constexpr const auto OptionCount = std::size(OptionsTable);
@@ -93,7 +103,7 @@ FramelessConfig *FramelessConfig::instance()
 
 void FramelessConfig::reload(const bool force)
 {
-    QMutexLocker locker(&g_data()->mutex);
+    const QMutexLocker locker(&g_data()->mutex);
     if (g_data()->loaded && !force) {
         return;
     }
@@ -117,37 +127,37 @@ void FramelessConfig::reload(const bool force)
 
 void FramelessConfig::set(const Option option, const bool on)
 {
-    QMutexLocker locker(&g_data()->mutex);
+    const QMutexLocker locker(&g_data()->mutex);
     g_data()->options[static_cast<int>(option)] = on;
 }
 
 bool FramelessConfig::isSet(const Option option) const
 {
-    QMutexLocker locker(&g_data()->mutex);
+    const QMutexLocker locker(&g_data()->mutex);
     return g_data()->options[static_cast<int>(option)];
 }
 
 void FramelessConfig::setLoadFromEnvironmentVariablesDisabled(const bool on)
 {
-    QMutexLocker locker(&g_data()->mutex);
+    const QMutexLocker locker(&g_data()->mutex);
     g_data()->disableEnvVar = on;
 }
 
 void FramelessConfig::setLoadFromConfigurationFileDisabled(const bool on)
 {
-    QMutexLocker locker(&g_data()->mutex);
+    const QMutexLocker locker(&g_data()->mutex);
     g_data()->disableCfgFile = on;
 }
 
-std::optional<QVariant> FramelessConfig::setInternal(const QString &key, const QVariant &value)
+QVariant FramelessConfig::setInternal(const QString &key, const QVariant &value)
 {
     Q_ASSERT(!key.isEmpty());
     Q_ASSERT(value.isValid());
     if (key.isEmpty() || !value.isValid()) {
-        return std::nullopt;
+        return {};
     }
-    std::optional<QVariant> previous = std::nullopt;
-    QMutexLocker locker(&g_data()->mutex);
+    QVariant previous = {};
+    const QMutexLocker locker(&g_data()->mutex);
     if (g_data()->internals.contains(key)) {
         previous = g_data()->internals.value(key);
         g_data()->internals.remove(key);
@@ -156,17 +166,17 @@ std::optional<QVariant> FramelessConfig::setInternal(const QString &key, const Q
     return previous;
 }
 
-std::optional<QVariant> FramelessConfig::getInternal(const QString &key) const
+QVariant FramelessConfig::getInternal(const QString &key) const
 {
     Q_ASSERT(!key.isEmpty());
     if (key.isEmpty()) {
-        return std::nullopt;
+        return {};
     }
-    QMutexLocker locker(&g_data()->mutex);
+    const QMutexLocker locker(&g_data()->mutex);
     if (g_data()->internals.contains(key)) {
         return g_data()->internals.value(key);
     }
-    return std::nullopt;
+    return {};
 }
 
 FRAMELESSHELPER_END_NAMESPACE

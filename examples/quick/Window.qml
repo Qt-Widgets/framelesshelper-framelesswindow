@@ -1,7 +1,7 @@
 /*
  * MIT License
  *
- * Copyright (C) 2022 by wangwenx190 (Yuhang Zhao)
+ * Copyright (C) 2021-2023 by wangwenx190 (Yuhang Zhao)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,13 +29,14 @@ import Demo
 
 FramelessWindow {
     id: window
+    objectName: "window"
     visible: false // Hide the window before we sets up it's correct size and position.
     width: 800
     height: 600
     title: qsTr("FramelessHelper demo application - Qt Quick")
     color: {
         if (FramelessHelper.blurBehindWindowEnabled) {
-            return Qt.color("transparent");
+            return "transparent";
         }
         if (FramelessUtils.systemTheme === FramelessHelperConstants.Dark) {
             return FramelessUtils.defaultSystemDarkColor;
@@ -60,6 +61,22 @@ FramelessWindow {
         window.visible = true;
     }
 
+    Shortcut {
+        sequences: [ StandardKey.Cancel, StandardKey.Close, StandardKey.Quit ]
+        onActivated: {
+            if (window.visibility === Window.FullScreen) {
+                window.toggleFullScreen();
+            } else {
+                window.close();
+            }
+        }
+    }
+
+    Shortcut {
+        sequences: [ StandardKey.FullScreen, "ALT+RETURN" ]
+        onActivated: window.toggleFullScreen()
+    }
+
     Timer {
         interval: 500
         running: true
@@ -80,9 +97,12 @@ FramelessWindow {
     StandardTitleBar {
         id: titleBar
         anchors {
-            top: window.topBorderBottom // VERY IMPORTANT!
+            top: parent.top
+            topMargin: window.visibility === Window.Windowed ? 1 : 0
             left: parent.left
             right: parent.right
         }
+        windowIcon: "qrc:///Demo/images/microsoft.svg"
+        windowIconVisible: true
     }
 }

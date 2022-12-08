@@ -1,7 +1,7 @@
 #[[
   MIT License
 
-  Copyright (C) 2022 by wangwenx190 (Yuhang Zhao)
+  Copyright (C) 2021-2023 by wangwenx190 (Yuhang Zhao)
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
   of this software and associated documentation files (the "Software"), to deal
@@ -25,7 +25,7 @@
 cmake_minimum_required(VERSION 3.20)
 
 project(FramelessHelper
-    VERSION 2.2.0.0
+    VERSION 2.3.5.0
     DESCRIPTION "Cross-platform window customization framework for Qt Widgets and Qt Quick."
     HOMEPAGE_URL "https://github.com/wangwenx190/framelesshelper/"
     LANGUAGES CXX
@@ -35,6 +35,23 @@ option(FRAMELESSHELPER_BUILD_STATIC "Build FramelessHelper as a static library."
 option(FRAMELESSHELPER_BUILD_WIDGETS "Build FramelessHelper's Widgets module." ON)
 option(FRAMELESSHELPER_BUILD_QUICK "Build FramelessHelper's Quick module." ON)
 option(FRAMELESSHELPER_BUILD_EXAMPLES "Build FramelessHelper demo applications." ON)
+option(FRAMELESSHELPER_EXAMPLES_DEPLOYQT "Deploy the Qt framework after building the demo projects." ON)
+option(FRAMELESSHELPER_NO_DEBUG_OUTPUT "Suppress the debug messages from FramelessHelper." OFF)
+option(FRAMELESSHELPER_NO_BUNDLE_RESOURCE "Do not bundle any resources within FramelessHelper." OFF)
+option(FRAMELESSHELPER_NO_PRIVATE "Do not use any private functionalities from Qt." OFF)
+option(FRAMELESSHELPER_ENABLE_VCLTL "MSVC only: link to the system MSVCRT/UCRT and get rid of API sets." OFF)
+
+if(FRAMELESSHELPER_NO_BUNDLE_RESOURCE)
+    message(WARNING "Nothing will be embeded into FramelessHelper, the chrome buttons will have no icon.")
+endif()
+
+if(FRAMELESSHELPER_NO_PRIVATE AND UNIX AND NOT APPLE)
+    message(SEND_ERROR "Disable private Qt functionalities will completely break FramelessHelper's Linux experience for now.")
+endif()
+
+if(FRAMELESSHELPER_ENABLE_VCLTL AND NOT MSVC)
+    message(WARNING "VC-LTL is only available for the MSVC toolchain.")
+endif()
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
@@ -43,9 +60,11 @@ if(NOT DEFINED CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
-if(NOT (CMAKE_BUILD_TYPE STREQUAL "Debug"))
-    if(NOT DEFINED CMAKE_INTERPROCEDURAL_OPTIMIZATION)
-        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+if(NOT DEFINED CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE)
+    # MinGW has many bugs when LTO is enabled, and they are all very
+    # hard to workaround, so just don't enable LTO at all for MinGW.
+    if(NOT (MINGW OR FRAMELESSHELPER_BUILD_STATIC))
+        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
     endif()
 endif()
 
@@ -84,23 +103,49 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 set(PROJECT_VERSION_COMMIT "UNKNOWN")
-find_program(GIT_EXECUTABLE_PATH git)
-if(GIT_EXECUTABLE_PATH AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git")
-    execute_process(
-        COMMAND ${GIT_EXECUTABLE_PATH} rev-parse HEAD
-        OUTPUT_VARIABLE PROJECT_VERSION_COMMIT
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+# Get a git hash value. We do not want to use git command here
+# because we don't want to make git a build-time dependency.
+if(EXISTS "${PROJECT_SOURCE_DIR}/.git/HEAD")
+    file(READ "${PROJECT_SOURCE_DIR}/.git/HEAD" PROJECT_VERSION_COMMIT)
+    string(STRIP "${PROJECT_VERSION_COMMIT}" PROJECT_VERSION_COMMIT)
+    if(PROJECT_VERSION_COMMIT MATCHES "^ref: (.*)")
+        set(HEAD "${CMAKE_MATCH_1}")
+        if(EXISTS "${PROJECT_SOURCE_DIR}/.git/${HEAD}")
+            file(READ "${PROJECT_SOURCE_DIR}/.git/${HEAD}" PROJECT_VERSION_COMMIT)
+            string(STRIP "${PROJECT_VERSION_COMMIT}" PROJECT_VERSION_COMMIT)
+        else()
+            file(READ "${PROJECT_SOURCE_DIR}/.git/packed-refs" PACKED_REFS)
+            string(REGEX REPLACE ".*\n([0-9a-f]+) ${HEAD}\n.*" "\\1" PROJECT_VERSION_COMMIT "\n${PACKED_REFS}")
+        endif()
+    endif()
 endif()
 
 set(PROJECT_COMPILE_DATETIME "UNKNOWN")
 string(TIMESTAMP PROJECT_COMPILE_DATETIME UTC)
 
+if(MSVC)
+    string(REGEX REPLACE "[-|/]GR-? " " " CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
+    string(REGEX REPLACE "[-|/]EHs-?c-? " " " CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
+    string(REGEX REPLACE "[-|/]W[0|1|2|3|4|all] " " " CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
+    string(APPEND CMAKE_CXX_FLAGS " /GR /EHsc /W4 ")
+    set(CMAKE_RC_FLAGS "/c65001 /DWIN32 /nologo")
+    if(MSVC_VERSION GREATER_EQUAL 1920) # Visual Studio 2019 version 16.0
+        string(REGEX REPLACE "[-|/]Ob[0|1|2|3] " " " CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
+        string(APPEND CMAKE_CXX_FLAGS_RELEASE " /Ob3 ")
+    endif()
+    if(FRAMELESSHELPER_ENABLE_VCLTL)
+        include(src/core/VC-LTL.cmake)
+        if("x${SupportLTL}" STREQUAL "xtrue")
+            set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>" CACHE STRING "" FORCE)
+        endif()
+    endif()
+endif()
+
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui)
 
-find_package(QT NAMES Qt6 Qt5 COMPONENTS Widgets Quick)
-find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Widgets Quick)
+find_package(QT NAMES Qt6 Qt5 QUIET COMPONENTS Widgets Quick)
+find_package(Qt${QT_VERSION_MAJOR} QUIET COMPONENTS Widgets Quick)
 
 write_basic_package_version_file(
     "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake"
@@ -127,3 +172,42 @@ endif()
 if(FRAMELESSHELPER_BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
+
+message("#######################################")
+message("CMake version: ${CMAKE_VERSION}")
+message("Host system: ${CMAKE_HOST_SYSTEM}")
+message("Host processor: ${CMAKE_HOST_SYSTEM_PROCESSOR}")
+#message("C compiler: ${CMAKE_C_COMPILER_ID} (${CMAKE_C_COMPILER})") # Currently we are not using any C compilers.
+#message("C compiler version: ${CMAKE_C_COMPILER_VERSION}")
+message("C++ compiler: ${CMAKE_CXX_COMPILER_ID} (${CMAKE_CXX_COMPILER})")
+message("C++ compiler version: ${CMAKE_CXX_COMPILER_VERSION}")
+message("Linker: ${CMAKE_LINKER}")
+message("Make program: ${CMAKE_MAKE_PROGRAM}")
+message("Build type: ${CMAKE_BUILD_TYPE}")
+message("Install prefix: ${CMAKE_INSTALL_PREFIX}")
+message("#######################################")
+set(__qt_inst_dir)
+if(DEFINED Qt6_DIR)
+    set(__qt_inst_dir "${Qt6_DIR}")
+else()
+    set(__qt_inst_dir "${Qt5_DIR}")
+endif()
+# /whatever/Qt/6.4.0/gcc_64/lib/cmake/Qt6
+set(__qt_inst_dir ${__qt_inst_dir}/../../..)
+cmake_path(NORMAL_PATH __qt_inst_dir)
+message("Qt install dir: ${__qt_inst_dir}")
+message("Qt version: ${QT_VERSION}")
+# TODO: output shared/static Qt.
+message("#######################################")
+message("FramelessHelper version: ${PROJECT_VERSION}")
+message("FramelessHelper commit hash: ${PROJECT_VERSION_COMMIT}")
+message("FramelessHelper configure date and time: ${PROJECT_COMPILE_DATETIME} (UTC)")
+message("Build the static version of FramelessHelper: ${FRAMELESSHELPER_BUILD_STATIC}")
+message("Build the FramelessHelper::Widgets module: ${FRAMELESSHELPER_BUILD_WIDGETS}")
+message("Build the FramelessHelper::Quick module: ${FRAMELESSHELPER_BUILD_QUICK}")
+message("Build the FramelessHelper demo applications: ${FRAMELESSHELPER_BUILD_EXAMPLES}")
+message("Deploy Qt libraries after compilation: ${FRAMELESSHELPER_EXAMPLES_DEPLOYQT}")
+message("Suppress debug messages from FramelessHelper: ${FRAMELESSHELPER_NO_DEBUG_OUTPUT}")
+message("Do not bundle any resources within FramelessHelper: ${FRAMELESSHELPER_NO_BUNDLE_RESOURCE}")
+message("Do not use any private functionalities from Qt: ${FRAMELESSHELPER_NO_PRIVATE}")
+message("#######################################")

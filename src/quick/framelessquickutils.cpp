@@ -1,7 +1,7 @@
 /*
  * MIT License
  *
- * Copyright (C) 2022 by wangwenx190 (Yuhang Zhao)
+ * Copyright (C) 2021-2023 by wangwenx190 (Yuhang Zhao)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,14 +25,25 @@
 #include "framelessquickutils.h"
 #include <framelessmanager.h>
 #include <utils.h>
+#ifdef Q_OS_WINDOWS
+#  include <winverhelper_p.h>
+#endif // Q_OS_WINDOWS
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
 
 Q_LOGGING_CATEGORY(lcFramelessQuickUtils, "wangwenx190.framelesshelper.quick.framelessquickutils")
-#define INFO qCInfo(lcFramelessQuickUtils)
-#define DEBUG qCDebug(lcFramelessQuickUtils)
-#define WARNING qCWarning(lcFramelessQuickUtils)
-#define CRITICAL qCCritical(lcFramelessQuickUtils)
+
+#ifdef FRAMELESSHELPER_QUICK_NO_DEBUG_OUTPUT
+#  define INFO QT_NO_QDEBUG_MACRO()
+#  define DEBUG QT_NO_QDEBUG_MACRO()
+#  define WARNING QT_NO_QDEBUG_MACRO()
+#  define CRITICAL QT_NO_QDEBUG_MACRO()
+#else
+#  define INFO qCInfo(lcFramelessQuickUtils)
+#  define DEBUG qCDebug(lcFramelessQuickUtils)
+#  define WARNING qCWarning(lcFramelessQuickUtils)
+#  define CRITICAL qCCritical(lcFramelessQuickUtils)
+#endif
 
 using namespace Global;
 
@@ -55,8 +66,7 @@ qreal FramelessQuickUtils::titleBarHeight() const
 bool FramelessQuickUtils::frameBorderVisible() const
 {
 #ifdef Q_OS_WINDOWS
-    static const bool isWin11OrGreater = Utils::isWindowsVersionOrGreater(WindowsVersion::_11_21H2);
-    return (Utils::isWindowFrameBorderVisible() && !isWin11OrGreater);
+    return (Utils::isWindowFrameBorderVisible() && !WindowsVersionHelper::isWin11OrGreater());
 #else
     return false;
 #endif
@@ -130,6 +140,14 @@ QColor FramelessQuickUtils::getSystemButtonBackgroundColor(const QuickGlobal::Sy
     return Utils::calculateSystemButtonBackgroundColor(
         FRAMELESSHELPER_ENUM_QUICK_TO_CORE(SystemButtonType, button),
         FRAMELESSHELPER_ENUM_QUICK_TO_CORE(ButtonState, state));
+}
+
+void FramelessQuickUtils::classBegin()
+{
+}
+
+void FramelessQuickUtils::componentComplete()
+{
 }
 
 FRAMELESSHELPER_END_NAMESPACE

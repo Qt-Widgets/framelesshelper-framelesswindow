@@ -1,7 +1,7 @@
 /*
  * MIT License
  *
- * Copyright (C) 2022 by wangwenx190 (Yuhang Zhao)
+ * Copyright (C) 2021-2023 by wangwenx190 (Yuhang Zhao)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,8 +24,8 @@
 
 #include "utils.h"
 #include "framelessmanager.h"
+#include "framelessmanager_p.h"
 #include "framelessconfig_p.h"
-#include <QtCore/qdebug.h>
 #include <QtCore/qhash.h>
 #include <QtCore/qmutex.h>
 #include <QtCore/qcoreapplication.h>
@@ -39,18 +39,181 @@
 #include <AppKit/AppKit.h>
 
 QT_BEGIN_NAMESPACE
-[[nodiscard]] Q_GUI_EXPORT QColor qt_mac_toQColor(const NSColor *color);
+[[nodiscard]] Q_CORE_EXPORT bool qt_mac_applicationIsInDarkMode(); // Since 5.12
+[[nodiscard]] Q_GUI_EXPORT QColor qt_mac_toQColor(const NSColor *color); // Since 5.8
 QT_END_NAMESPACE
+
+FRAMELESSHELPER_BEGIN_NAMESPACE
+using Callback = std::function<void()>;
+FRAMELESSHELPER_END_NAMESPACE
+
+@interface MyKeyValueObserver : NSObject
+@end
+
+@implementation MyKeyValueObserver
+- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object
+        change:(NSDictionary<NSKeyValueChangeKey, id> *)change context:(void *)context
+{
+    Q_UNUSED(keyPath);
+    Q_UNUSED(object);
+    Q_UNUSED(change);
+
+    (*reinterpret_cast<FRAMELESSHELPER_PREPEND_NAMESPACE(Callback) *>(context))();
+}
+@end
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
 
 Q_LOGGING_CATEGORY(lcUtilsMac, "wangwenx190.framelesshelper.core.utils.mac")
-#define INFO qCInfo(lcUtilsMac)
-#define DEBUG qCDebug(lcUtilsMac)
-#define WARNING qCWarning(lcUtilsMac)
-#define CRITICAL qCCritical(lcUtilsMac)
+
+#ifdef FRAMELESSHELPER_CORE_NO_DEBUG_OUTPUT
+#  define INFO QT_NO_QDEBUG_MACRO()
+#  define DEBUG QT_NO_QDEBUG_MACRO()
+#  define WARNING QT_NO_QDEBUG_MACRO()
+#  define CRITICAL QT_NO_QDEBUG_MACRO()
+#else
+#  define INFO qCInfo(lcUtilsMac)
+#  define DEBUG qCDebug(lcUtilsMac)
+#  define WARNING qCWarning(lcUtilsMac)
+#  define CRITICAL qCCritical(lcUtilsMac)
+#endif
 
 using namespace Global;
+
+class MacOSNotificationObserver
+{
+    Q_DISABLE_COPY_MOVE(MacOSNotificationObserver)
+
+public:
+    explicit MacOSNotificationObserver(NSObject *object, NSNotificationName name, const Callback &callback) {
+        Q_ASSERT(name);
+        Q_ASSERT(callback);
+        if (!name || !callback) {
+            return;
+        }
+        observer = [[NSNotificationCenter defaultCenter] addObserverForName:name
+            object:object queue:nil usingBlock:^(NSNotification *) {
+                callback();
+            }
+        ];
+    }
+
+    explicit MacOSNotificationObserver() = default;
+
+    ~MacOSNotificationObserver()
+    {
+        remove();
+    }
+
+    void remove()
+    {
+        if (!observer) {
+            return;
+        }
+        [[NSNotificationCenter defaultCenter] removeObserver:observer];
+        observer = nil;
+    }
+
+private:
+    NSObject *observer = nil;
+};
+
+class MacOSKeyValueObserver
+{
+    Q_DISABLE_COPY_MOVE(MacOSKeyValueObserver)
+
+public:
+    // Note: MacOSKeyValueObserver must not outlive the object observed!
+    explicit MacOSKeyValueObserver(NSObject *obj, NSString *key, const Callback &cb,
+        const NSKeyValueObservingOptions options = NSKeyValueObservingOptionNew)
+    {
+        Q_ASSERT(obj);
+        Q_ASSERT(key);
+        Q_ASSERT(cb);
+        if (!obj || !key || !cb) {
+            return;
+        }
+        object = obj;
+        keyPath = key;
+        callback.reset(new Callback(cb));
+        addObserver(options);
+    }
+
+    explicit MacOSKeyValueObserver() = default;
+
+    ~MacOSKeyValueObserver()
+    {
+        removeObserver();
+    }
+
+    void removeObserver()
+    {
+        if (!object) {
+            return;
+        }
+        [object removeObserver:observer forKeyPath:keyPath context:callback.data()];
+        object = nil;
+    }
+
+private:
+    void addObserver(const NSKeyValueObservingOptions options)
+    {
+        [object addObserver:observer forKeyPath:keyPath options:options context:callback.data()];
+    }
+
+private:
+    NSObject *object = nil;
+    NSString *keyPath = nil;
+    QScopedPointer<Callback> callback;
+
+    static inline MyKeyValueObserver *observer = [[MyKeyValueObserver alloc] init];
+};
+
+class MacOSThemeObserver
+{
+    Q_DISABLE_COPY_MOVE(MacOSThemeObserver)
+
+public:
+    explicit MacOSThemeObserver()
+    {
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 11, 2))
+        static const bool isMojave = (QOperatingSystemVersion::current() >= QOperatingSystemVersion::MacOSMojave);
+#elif (QT_VERSION >= QT_VERSION_CHECK(5, 9, 1))
+        static const bool isMojave = (QOperatingSystemVersion::current() > QOperatingSystemVersion::MacOSHighSierra);
+#elif (QT_VERSION >= QT_VERSION_CHECK(5, 9, 0))
+        static const bool isMojave = (QOperatingSystemVersion::current() > QOperatingSystemVersion::MacOSSierra);
+#else
+        static const bool isMojave = (QSysInfo::macVersion() > QSysInfo::MV_SIERRA);
+#endif
+        if (isMojave) {
+            m_appearanceObserver.reset(new MacOSKeyValueObserver(NSApp, @"effectiveAppearance", [](){
+                QT_WARNING_PUSH
+                QT_WARNING_DISABLE_DEPRECATED
+                NSAppearance.currentAppearance = NSApp.effectiveAppearance; // FIXME: use latest API.
+                QT_WARNING_POP
+                MacOSThemeObserver::notifySystemThemeChange();
+            }));
+        }
+        m_systemColorObserver.reset(new MacOSNotificationObserver(nil, NSSystemColorsDidChangeNotification,
+            [](){ MacOSThemeObserver::notifySystemThemeChange(); }));
+    }
+
+    ~MacOSThemeObserver() = default;
+
+    static void notifySystemThemeChange()
+    {
+        // Sometimes the FramelessManager instance may be destroyed already.
+        if (FramelessManager * const manager = FramelessManager::instance()) {
+            if (FramelessManagerPrivate * const managerPriv = FramelessManagerPrivate::get(manager)) {
+                managerPriv->notifySystemThemeHasChangedOrNot();
+            }
+        }
+    }
+
+private:
+    QScopedPointer<MacOSNotificationObserver> m_systemColorObserver;
+    QScopedPointer<MacOSKeyValueObserver> m_appearanceObserver;
+};
 
 class NSWindowProxy : public QObject
 {
@@ -406,7 +569,7 @@ Q_GLOBAL_STATIC(MacUtilsData, g_macUtilsData);
     if (!windowId) {
         return nil;
     }
-    QMutexLocker locker(&g_macUtilsData()->mutex);
+    const QMutexLocker locker(&g_macUtilsData()->mutex);
     if (!g_macUtilsData()->hash.contains(windowId)) {
         QWindow * const qwindow = Utils::findWindow(windowId);
         Q_ASSERT(qwindow);
@@ -421,6 +584,24 @@ Q_GLOBAL_STATIC(MacUtilsData, g_macUtilsData);
         const auto proxy = new NSWindowProxy(qwindow, nswindow);
         g_macUtilsData()->hash.insert(windowId, proxy);
     }
+    static const auto hook = []() -> int {
+        FramelessHelper::Core::registerUninitializeHook([](){
+            const QMutexLocker locker(&g_macUtilsData()->mutex);
+            if (g_macUtilsData()->hash.isEmpty()) {
+                return;
+            }
+            for (auto &&proxy : qAsConst(g_macUtilsData()->hash)) {
+                Q_ASSERT(proxy);
+                if (!proxy) {
+                    continue;
+                }
+                delete proxy;
+            }
+            g_macUtilsData()->hash.clear();
+        });
+        return 0;
+    }();
+    Q_UNUSED(hook);
     return g_macUtilsData()->hash.value(windowId);
 }
 
@@ -499,14 +680,13 @@ bool Utils::isTitleBarColorized()
 
 bool Utils::shouldAppsUseDarkMode_macos()
 {
-#if QT_MACOS_PLATFORM_SDK_EQUAL_OR_ABOVE(__MAC_10_14)
-    if (__builtin_available(macOS 10.14, *)) {
-        const auto appearance = [NSApp.effectiveAppearance bestMatchFromAppearancesWithNames:
-                                    @[NSAppearanceNameAqua, NSAppearanceNameDarkAqua]];
-        return [appearance isEqualToString:NSAppearanceNameDarkAqua];
-    }
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 12, 0))
+    return qt_mac_applicationIsInDarkMode();
+#else
+    const auto appearance = [NSApp.effectiveAppearance bestMatchFromAppearancesWithNames:
+                            @[NSAppearanceNameAqua, NSAppearanceNameDarkAqua]];
+    return [appearance isEqualToString:NSAppearanceNameDarkAqua];
 #endif
-    return false;
 }
 
 bool Utils::setBlurBehindWindowEnabled(const WId windowId, const BlurMode mode, const QColor &color)
@@ -516,7 +696,7 @@ bool Utils::setBlurBehindWindowEnabled(const WId windowId, const BlurMode mode, 
     if (!windowId) {
         return false;
     }
-    const BlurMode blurMode = [mode]() -> BlurMode {
+    const auto blurMode = [mode]() -> BlurMode {
         if ((mode == BlurMode::Disable) || (mode == BlurMode::Default)) {
             return mode;
         }
@@ -565,7 +745,7 @@ WallpaperAspectStyle Utils::getWallpaperAspectStyle()
 
 bool Utils::isBlurBehindWindowSupported()
 {
-    static const bool result = []() -> bool {
+    static const auto result = []() -> bool {
         if (FramelessConfig::instance()->isSet(Option::ForceNonNativeBackgroundBlur)) {
             return false;
         }
@@ -576,6 +756,35 @@ bool Utils::isBlurBehindWindowSupported()
 #endif
     }();
     return result;
+}
+
+void Utils::registerThemeChangeNotification()
+{
+    static MacOSThemeObserver observer;
+    Q_UNUSED(observer);
+}
+
+void Utils::removeWindowProxy(const WId windowId)
+{
+    Q_ASSERT(windowId);
+    if (!windowId) {
+        return;
+    }
+    const QMutexLocker locker(&g_macUtilsData()->mutex);
+    if (!g_macUtilsData()->hash.contains(windowId)) {
+        return;
+    }
+    if (const auto proxy = g_macUtilsData()->hash.value(windowId)) {
+        // We'll restore everything to default in the destructor,
+        // so no need to do it manually here.
+        delete proxy;
+    }
+    g_macUtilsData()->hash.remove(windowId);
+}
+
+QColor Utils::getFrameBorderColor(const bool active)
+{
+    return (active ? getControlsAccentColor() : kDefaultDarkGrayColor);
 }
 
 FRAMELESSHELPER_END_NAMESPACE

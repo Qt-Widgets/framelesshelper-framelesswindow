@@ -1,7 +1,7 @@
 /*
  * MIT License
  *
- * Copyright (C) 2022 by wangwenx190 (Yuhang Zhao)
+ * Copyright (C) 2021-2023 by wangwenx190 (Yuhang Zhao)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,39 +22,31 @@
  * SOFTWARE.
  */
 
-#include "framelesshelperquick_global.h"
+#pragma once
+
+#include "framelesshelperwidgets_global.h"
+#include <QtWidgets/qdialog.h>
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
 
-Q_LOGGING_CATEGORY(lcQuickGlobal, "wangwenx190.framelesshelper.quick.global")
-#define INFO qCInfo(lcQuickGlobal)
-#define DEBUG qCDebug(lcQuickGlobal)
-#define WARNING qCWarning(lcQuickGlobal)
-#define CRITICAL qCCritical(lcQuickGlobal)
+Q_DECLARE_LOGGING_CATEGORY(lcFramelessDialog)
 
-namespace FramelessHelper::Quick
+class FramelessDialogPrivate;
+
+class FRAMELESSHELPER_WIDGETS_API FramelessDialog : public QDialog
 {
+    Q_OBJECT
+    Q_DECLARE_PRIVATE(FramelessDialog)
+    Q_DISABLE_COPY_MOVE(FramelessDialog)
 
-void initialize()
-{
-    static bool inited = false;
-    if (inited) {
-        return;
-    }
-    inited = true;
+public:
+    explicit FramelessDialog(QWidget *parent = nullptr);
+    ~FramelessDialog() override;
 
-    FramelessHelper::Core::initialize();
-
-    // ### TODO: The Quick module-specific initialization.
-}
-
-void uninitialize()
-{
-    // ### TODO: The Quick module-specific uninitialization.
-
-    FramelessHelper::Core::uninitialize();
-}
-
-}
+private:
+    QScopedPointer<FramelessDialogPrivate> d_ptr;
+};
 
 FRAMELESSHELPER_END_NAMESPACE
+
+Q_DECLARE_METATYPE2(FRAMELESSHELPER_PREPEND_NAMESPACE(FramelessDialog))

@@ -1,7 +1,7 @@
 #[[
   MIT License
 
-  Copyright (C) 2022 by wangwenx190 (Yuhang Zhao)
+  Copyright (C) 2021-2023 by wangwenx190 (Yuhang Zhao)
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
   of this software and associated documentation files (the "Software"), to deal
@@ -26,8 +26,9 @@ if(FRAMELESSHELPER_BUILD_WIDGETS AND TARGET Qt${QT_VERSION_MAJOR}::Widgets)
     add_subdirectory(widget)
     add_subdirectory(mainwindow)
     add_subdirectory(openglwidget)
+    add_subdirectory(dialog)
 endif()
 
-if(FRAMELESSHELPER_BUILD_QUICK AND TARGET Qt${QT_VERSION_MAJOR}::Quick AND ${QT_VERSION_MAJOR} GREATER_EQUAL 6)
+if(FRAMELESSHELPER_BUILD_QUICK AND TARGET Qt${QT_VERSION_MAJOR}::Quick AND (${QT_VERSION_MAJOR} GREATER_EQUAL 6) AND (NOT FRAMELESSHELPER_NO_PRIVATE))
     add_subdirectory(quick)
 endif()

@@ -1,7 +1,7 @@
 /*
  * MIT License
  *
- * Copyright (C) 2022 by wangwenx190 (Yuhang Zhao)
+ * Copyright (C) 2021-2023 by wangwenx190 (Yuhang Zhao)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,20 +28,30 @@
 #include "framelesswidgetshelper.h"
 #include "framelesswidget.h"
 #include "framelessmainwindow.h"
+#include "framelessdialog.h"
 #include "widgetssharedhelper_p.h"
 #include "standardtitlebar_p.h"
 #include "standardsystembutton_p.h"
 #include "framelesswidgetshelper_p.h"
 #include "framelesswidget_p.h"
 #include "framelessmainwindow_p.h"
+#include "framelessdialog_p.h"
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
 
 Q_LOGGING_CATEGORY(lcWidgetsGlobal, "wangwenx190.framelesshelper.widgets.global")
-#define INFO qCInfo(lcWidgetsGlobal)
-#define DEBUG qCDebug(lcWidgetsGlobal)
-#define WARNING qCWarning(lcWidgetsGlobal)
-#define CRITICAL qCCritical(lcWidgetsGlobal)
+
+#ifdef FRAMELESSHELPER_WIDGETS_NO_DEBUG_OUTPUT
+#  define INFO QT_NO_QDEBUG_MACRO()
+#  define DEBUG QT_NO_QDEBUG_MACRO()
+#  define WARNING QT_NO_QDEBUG_MACRO()
+#  define CRITICAL QT_NO_QDEBUG_MACRO()
+#else
+#  define INFO qCInfo(lcWidgetsGlobal)
+#  define DEBUG qCDebug(lcWidgetsGlobal)
+#  define WARNING qCWarning(lcWidgetsGlobal)
+#  define CRITICAL qCCritical(lcWidgetsGlobal)
+#endif
 
 namespace FramelessHelper::Widgets
 {
@@ -62,17 +72,25 @@ void initialize()
     qRegisterMetaType<FramelessWidgetsHelper>();
     qRegisterMetaType<FramelessWidget>();
     qRegisterMetaType<FramelessMainWindow>();
+    qRegisterMetaType<FramelessDialog>();
     qRegisterMetaType<WidgetsSharedHelper>();
     qRegisterMetaType<StandardTitleBarPrivate>();
     qRegisterMetaType<StandardSystemButtonPrivate>();
     qRegisterMetaType<FramelessWidgetsHelperPrivate>();
     qRegisterMetaType<FramelessWidgetPrivate>();
     qRegisterMetaType<FramelessMainWindowPrivate>();
+    qRegisterMetaType<FramelessDialogPrivate>();
 #endif
 }
 
 void uninitialize()
 {
+    static bool uninited = false;
+    if (uninited) {
+        return;
+    }
+    uninited = true;
+
     // ### TODO: The Widgets module-specific uninitialization.
 
     FramelessHelper::Core::uninitialize();

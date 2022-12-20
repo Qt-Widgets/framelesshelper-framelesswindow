@@ -25,9 +25,6 @@
 #include "framelesshelpercore_global.h"
 #include "utils.h"
 #include "framelessmanager.h"
-#ifdef Q_OS_WINDOWS
-#  include "framelesshelper_win.h"
-#endif
 #include "framelesshelper_qt.h"
 #include "chromepalette.h"
 #include "micamaterial.h"
@@ -39,10 +36,11 @@
 #include "micamaterial_p.h"
 #include "windowborderpainter_p.h"
 #ifdef Q_OS_WINDOWS
+#  include "framelesshelper_win.h"
 #  include "registrykey_p.h"
 #endif
 #ifdef Q_OS_LINUX
-#  include <gtk/gtk.h>
+#  include "framelesshelper_linux.h"
 #endif
 #include <QtCore/qmutex.h>
 #include <QtCore/qiodevice.h>
@@ -73,6 +71,7 @@
 #endif
 
 #ifndef QT_NO_DEBUG_STREAM
+QT_BEGIN_NAMESPACE
 QDebug operator<<(QDebug d, const FRAMELESSHELPER_PREPEND_NAMESPACE(Global)::VersionNumber &ver)
 {
     const QDebugStateSaver saver(d);
@@ -110,6 +109,7 @@ QDebug operator<<(QDebug d, const FRAMELESSHELPER_PREPEND_NAMESPACE(Global)::Dpi
                           << "scale factor: " << scaleFactor << ')';
     return d;
 }
+QT_END_NAMESPACE
 #endif // QT_NO_DEBUG_STREAM
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
@@ -168,16 +168,13 @@ void initialize()
     outputLogo();
 
 #ifdef Q_OS_LINUX
-    gtk_init(nullptr, nullptr);
-#endif
-
-#ifdef Q_OS_LINUX
     // Qt's Wayland experience is not good, so we force the XCB backend here.
     // TODO: Remove this hack once Qt's Wayland implementation is good enough.
     // We are setting the preferred QPA backend, so we have to set it early
     // enough, that is, before the construction of any Q(Gui)Application
     // instances. QCoreApplication won't instantiate the platform plugin.
     qputenv(QT_QPA_ENV_VAR, kxcb);
+    gtk_init(nullptr, nullptr);
 #endif
 
 #if (defined(Q_OS_MACOS) && (QT_VERSION < QT_VERSION_CHECK(6, 0, 0)))
@@ -259,7 +256,7 @@ void initialize()
 
     const QMutexLocker locker(&coreData()->mutex);
     if (!coreData()->initHooks.isEmpty()) {
-        for (auto &&hook : qAsConst(coreData()->initHooks)) {
+        for (auto &&hook : std::as_const(coreData()->initHooks)) {
             Q_ASSERT(hook);
             if (!hook) {
                 continue;
@@ -281,7 +278,7 @@ void uninitialize()
     if (coreData()->uninitHooks.isEmpty()) {
         return;
     }
-    for (auto &&hook : qAsConst(coreData()->uninitHooks)) {
+    for (auto &&hook : std::as_const(coreData()->uninitHooks)) {
         Q_ASSERT(hook);
         if (!hook) {
             continue;

@@ -68,10 +68,10 @@ static const QHash<int, FONT_ICON> g_fontIconsTable = {
     {static_cast<int>(SystemButtonType::Unknown), {0x0000, 0x0000}},
     {static_cast<int>(SystemButtonType::WindowIcon), {0xE756, 0x0000}},
     {static_cast<int>(SystemButtonType::Help), {0xE897, 0x0000}},
-    {static_cast<int>(SystemButtonType::Minimize), {0xE921, 0xE64C}},
-    {static_cast<int>(SystemButtonType::Maximize), {0xE922, 0xE64D}},
-    {static_cast<int>(SystemButtonType::Restore), {0xE923, 0xE64E}},
-    {static_cast<int>(SystemButtonType::Close), {0xE8BB, 0xE64F}}
+    {static_cast<int>(SystemButtonType::Minimize), {0xE921, 0xE93E}},
+    {static_cast<int>(SystemButtonType::Maximize), {0xE922, 0xE93C}},
+    {static_cast<int>(SystemButtonType::Restore), {0xE923, 0xE93D}},
+    {static_cast<int>(SystemButtonType::Close), {0xE8BB, 0xE93B}}
 };
 #endif // FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
 
@@ -179,7 +179,7 @@ QWindow *Utils::findWindow(const WId windowId)
     if (windows.isEmpty()) {
         return nullptr;
     }
-    for (auto &&window : qAsConst(windows)) {
+    for (auto &&window : std::as_const(windows)) {
         if (window && window->handle()) {
             if (window->winId() == windowId) {
                 return window;
@@ -214,8 +214,8 @@ void Utils::moveWindowToDesktopCenter(const GetWindowScreenCallback &getWindowSc
     }
     const QSize screenSize = (considerTaskBar ? screen->availableVirtualSize() : screen->virtualSize());
     const QPoint offset = (considerTaskBar ? screen->availableVirtualGeometry().topLeft() : QPoint(0, 0));
-    const int newX = qRound(qreal(screenSize.width() - windowSize.width()) / 2.0);
-    const int newY = qRound(qreal(screenSize.height() - windowSize.height()) / 2.0);
+    const int newX = std::round(qreal(screenSize.width() - windowSize.width()) / 2.0);
+    const int newY = std::round(qreal(screenSize.height() - windowSize.height()) / 2.0);
     setWindowPosition(QPoint(newX + offset.x(), newY + offset.y()));
 }
 
@@ -315,20 +315,20 @@ qreal Utils::roundScaleFactor(const qreal factor)
     static const auto policy = QGuiApplication::highDpiScaleFactorRoundingPolicy();
     switch (policy) {
     case Qt::HighDpiScaleFactorRoundingPolicy::Round:
-        return qRound(factor);
+        return std::round(factor);
     case Qt::HighDpiScaleFactorRoundingPolicy::Ceil:
         return qCeil(factor);
     case Qt::HighDpiScaleFactorRoundingPolicy::Floor:
         return qFloor(factor);
     case Qt::HighDpiScaleFactorRoundingPolicy::RoundPreferFloor:
-        return (((factor - qreal(int(factor))) >= qreal(0.75)) ? qRound(factor) : qFloor(factor));
+        return (((factor - qreal(int(factor))) >= qreal(0.75)) ? std::round(factor) : qFloor(factor));
     case Qt::HighDpiScaleFactorRoundingPolicy::PassThrough:
     case Qt::HighDpiScaleFactorRoundingPolicy::Unset: // According to Qt source code, this enum value is the same with PassThrough.
         return factor;
     }
     return 1;
 #  else // (QT_VERSION < QT_VERSION_CHECK(5, 14, 0))
-    return qRound(factor);
+    return std::round(factor);
 #  endif // (QT_VERSION >= QT_VERSION_CHECK(5, 14, 0))
 #else // (!FRAMELESSHELPER_CORE_NO_PRIVATE && (QT_VERSION >= QT_VERSION_CHECK(6, 2, 1)))
     return QHighDpiScaling::roundScaleFactor(factor);
@@ -342,7 +342,7 @@ int Utils::toNativePixels(const QWindow *window, const int value)
         return 0;
     }
 #ifdef FRAMELESSHELPER_CORE_NO_PRIVATE
-    return qRound(qreal(value) * window->devicePixelRatio());
+    return std::round(qreal(value) * window->devicePixelRatio());
 #else // !FRAMELESSHELPER_CORE_NO_PRIVATE
     return QHighDpi::toNativePixels(value, window);
 #endif // FRAMELESSHELPER_CORE_NO_PRIVATE
@@ -394,7 +394,7 @@ int Utils::fromNativePixels(const QWindow *window, const int value)
         return 0;
     }
 #ifdef FRAMELESSHELPER_CORE_NO_PRIVATE
-    return qRound(qreal(value) / window->devicePixelRatio());
+    return std::round(qreal(value) / window->devicePixelRatio());
 #else // !FRAMELESSHELPER_CORE_NO_PRIVATE
     return QHighDpi::fromNativePixels(value, window);
 #endif // FRAMELESSHELPER_CORE_NO_PRIVATE

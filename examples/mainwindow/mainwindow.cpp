@@ -31,6 +31,16 @@
 #include <StandardSystemButton>
 #include <FramelessWidgetsHelper>
 #include "../shared/settings.h"
+#include "../widget/widget.h"
+#include "../dialog/dialog.h"
+
+extern template void Settings::set<QRect>(const QString &, const QString &, const QRect &);
+extern template void Settings::set<qreal>(const QString &, const QString &, const qreal &);
+extern template void Settings::set<QByteArray>(const QString &, const QString &, const QByteArray &);
+
+extern template QRect Settings::get<QRect>(const QString &, const QString &);
+extern template qreal Settings::get<qreal>(const QString &, const QString &);
+extern template QByteArray Settings::get<QByteArray>(const QString &, const QString &);
 
 FRAMELESSHELPER_USE_NAMESPACE
 
@@ -38,6 +48,7 @@ using namespace Global;
 
 FRAMELESSHELPER_STRING_CONSTANT(Geometry)
 FRAMELESSHELPER_STRING_CONSTANT(State)
+FRAMELESSHELPER_STRING_CONSTANT(DevicePixelRatio)
 
 MainWindow::MainWindow(QWidget *parent, const Qt::WindowFlags flags) : FramelessMainWindow(parent, flags)
 {
@@ -48,16 +59,19 @@ MainWindow::~MainWindow() = default;
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
-    Settings::set({}, kGeometry, saveGeometry());
-    Settings::set({}, kState, saveState());
+    if (!parent()) {
+        Settings::set({}, kGeometry, geometry());
+        Settings::set({}, kState, saveState());
+        Settings::set({}, kDevicePixelRatio, devicePixelRatioF());
+    }
     FramelessMainWindow::closeEvent(event);
 }
 
 void MainWindow::initialize()
 {
-    m_titleBar.reset(new StandardTitleBar(this));
+    m_titleBar = new StandardTitleBar(this);
     m_titleBar->setTitleLabelAlignment(Qt::AlignCenter);
-    m_mainWindow.reset(new Ui::MainWindow);
+    m_mainWindow = new Ui::MainWindow;
     m_mainWindow->setupUi(this);
 
     QMenuBar * const mb = menuBar();
@@ -83,27 +97,41 @@ QMenuBar::item:pressed {
     titleBarLayout->insertWidget(0, mb);
 
     // setMenuWidget(): make the menu widget become the first row of the window.
-    setMenuWidget(m_titleBar.data());
+    setMenuWidget(m_titleBar);
 
     FramelessWidgetsHelper *helper = FramelessWidgetsHelper::get(this);
-    helper->setTitleBarWidget(m_titleBar.data());
+    helper->setTitleBarWidget(m_titleBar);
     helper->setSystemButton(m_titleBar->minimizeButton(), SystemButtonType::Minimize);
     helper->setSystemButton(m_titleBar->maximizeButton(), SystemButtonType::Maximize);
     helper->setSystemButton(m_titleBar->closeButton(), SystemButtonType::Close);
     helper->setHitTestVisible(mb); // IMPORTANT!
     connect(helper, &FramelessWidgetsHelper::ready, this, [this, helper](){
-        const QByteArray geoData = Settings::get({}, kGeometry);
-        const QByteArray stateData = Settings::get({}, kState);
-        if (geoData.isEmpty()) {
-            helper->moveWindowToDesktopCenter();
+        const auto savedGeometry = Settings::get<QRect>({}, kGeometry);
+        if (savedGeometry.isValid() && !parent()) {
+            const auto savedDpr = Settings::get<qreal>({}, kDevicePixelRatio);
+            // Qt doesn't support dpi < 1.
+            const qreal oldDpr = std::max(savedDpr, qreal(1));
+            const qreal scale = (devicePixelRatioF() / oldDpr);
+            setGeometry({savedGeometry.topLeft() * scale, savedGeometry.size() * scale});
         } else {
-            restoreGeometry(geoData);
+            helper->moveWindowToDesktopCenter();
         }
-        if (!stateData.isEmpty()) {
-            restoreState(stateData);
+        const QByteArray savedState = Settings::get<QByteArray>({}, kState);
+        if (!savedState.isEmpty() && !parent()) {
+            restoreState(savedState);
         }
     });
 
     setWindowTitle(tr("FramelessHelper demo application - Qt MainWindow"));
     setWindowIcon(QFileIconProvider().icon(QFileIconProvider::Computer));
+    connect(m_mainWindow->pushButton, &QPushButton::clicked, this, [this]{
+        const auto dialog = new Dialog(this);
+        dialog->setAttribute(Qt::WA_DeleteOnClose);
+        dialog->exec();
+    });
+    connect(m_mainWindow->pushButton_2, &QPushButton::clicked, this, [this]{
+        const auto widget = new Widget(this);
+        widget->setAttribute(Qt::WA_DeleteOnClose);
+        widget->show();
+    });
 }

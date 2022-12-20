@@ -23,6 +23,12 @@
  */
 
 #include "utils.h"
+#include "framelesshelper_windows.h"
+#include "framelessmanager.h"
+#include "framelessconfig_p.h"
+#include "sysapiloader_p.h"
+#include "registrykey_p.h"
+#include "winverhelper_p.h"
 #include <QtCore/qmutex.h>
 #include <QtCore/qhash.h>
 #include <QtGui/qwindow.h>
@@ -39,640 +45,7 @@
 #    include <QtGui/qpa/qplatformwindow_p.h>
 #  endif // (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
 #endif // FRAMELESSHELPER_CORE_NO_PRIVATE
-#include "framelessmanager.h"
-#include "framelesshelper_windows.h"
-#include "framelessconfig_p.h"
-#include "sysapiloader_p.h"
-#include "registrykey_p.h"
-#include "winverhelper_p.h"
 #include <d2d1.h>
-
-EXTERN_C_START
-
-_MMRESULT WINAPI
-_timeGetDevCaps(
-    _Out_writes_bytes_(cbtc) _PTIMECAPS ptc,
-    _In_ UINT cbtc
-);
-
-_MMRESULT WINAPI
-_timeBeginPeriod(
-    _In_ UINT uPeriod
-);
-
-_MMRESULT WINAPI
-_timeEndPeriod(
-    _In_ UINT uPeriod
-);
-
-HRESULT WINAPI
-_SetProcessDpiAwareness(
-    _In_ _PROCESS_DPI_AWARENESS value
-);
-
-HRESULT WINAPI
-_GetProcessDpiAwareness(
-    _In_opt_ HANDLE hProcess,
-    _Out_ _PROCESS_DPI_AWARENESS *value
-);
-
-HRESULT WINAPI
-_GetDpiForMonitor(
-    _In_ HMONITOR hMonitor,
-    _In_ _MONITOR_DPI_TYPE dpiType,
-    _Out_ UINT *dpiX,
-    _Out_ UINT *dpiY
-);
-
-int WINAPI
-_GetSystemMetricsForDpi(
-    _In_ int nIndex,
-    _In_ UINT dpi
-);
-
-UINT WINAPI
-_GetWindowDPI(
-    _In_ HWND hWnd
-);
-
-UINT WINAPI
-_GetDpiForWindow(
-    _In_ HWND hWnd
-);
-
-UINT WINAPI
-_GetDpiForSystem(
-    VOID
-);
-
-UINT WINAPI
-_GetSystemDpiForProcess(
-    _In_ HANDLE hProcess
-);
-
-BOOL WINAPI
-_SetProcessDpiAwarenessContext(
-    _In_ _DPI_AWARENESS_CONTEXT value
-);
-
-BOOL WINAPI
-_SetProcessDPIAware(
-    VOID
-);
-
-HRESULT WINAPI
-_GetScaleFactorForMonitor(
-    _In_ HMONITOR hMon,
-    _Out_ _DEVICE_SCALE_FACTOR *pScale
-);
-
-BOOL WINAPI
-_EnableNonClientDpiScaling(
-    _In_ HWND hWnd
-);
-
-_DPI_AWARENESS_CONTEXT WINAPI
-_GetThreadDpiAwarenessContext(
-    VOID
-);
-
-_DPI_AWARENESS_CONTEXT WINAPI
-_GetWindowDpiAwarenessContext(
-    _In_ HWND hWnd
-);
-
-_DPI_AWARENESS WINAPI
-_GetAwarenessFromDpiAwarenessContext(
-    _In_ _DPI_AWARENESS_CONTEXT value
-);
-
-_DPI_AWARENESS_CONTEXT WINAPI
-_GetDpiAwarenessContextForProcess(
-    _In_ HANDLE hProcess
-);
-
-BOOL WINAPI
-_AreDpiAwarenessContextsEqual(
-    _In_ _DPI_AWARENESS_CONTEXT dpiContextA,
-    _In_ _DPI_AWARENESS_CONTEXT dpiContextB
-);
-
-BOOL WINAPI
-_EnableChildWindowDpiMessage(
-    _In_ HWND hWnd,
-    _In_ BOOL fEnable
-);
-
-BOOL WINAPI
-_EnablePerMonitorDialogScaling(
-    VOID
-);
-
-int WINAPI
-_GetDpiMetrics(
-    _In_ int nIndex,
-    _In_ UINT dpi
-);
-
-BOOL WINAPI
-_AdjustWindowRectExForDpi(
-    _Inout_ LPRECT lpRect,
-    _In_ DWORD dwStyle,
-    _In_ BOOL bMenu,
-    _In_ DWORD dwExStyle,
-    _In_ UINT dpi
-);
-
-EXTERN_C_END
-
-EXTERN_C [[nodiscard]] FRAMELESSHELPER_CORE_API BOOL WINAPI
-_GetWindowCompositionAttribute(const HWND hWnd, PWINDOWCOMPOSITIONATTRIBDATA pvData)
-{
-    Q_ASSERT(hWnd);
-    Q_ASSERT(pvData);
-    if (!hWnd || !pvData) {
-        SetLastError(ERROR_INVALID_PARAMETER);
-        return FALSE;
-    }
-    FRAMELESSHELPER_STRING_CONSTANT(user32)
-    FRAMELESSHELPER_STRING_CONSTANT(GetWindowCompositionAttribute)
-    if (!API_USER_AVAILABLE(GetWindowCompositionAttribute)) {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-        return FALSE;
-    }
-    return API_CALL_FUNCTION4(GetWindowCompositionAttribute, hWnd, pvData);
-}
-
-EXTERN_C [[nodiscard]] FRAMELESSHELPER_CORE_API BOOL WINAPI
-_SetWindowCompositionAttribute(const HWND hWnd, PWINDOWCOMPOSITIONATTRIBDATA pvData)
-{
-    Q_ASSERT(hWnd);
-    Q_ASSERT(pvData);
-    if (!hWnd || !pvData) {
-        SetLastError(ERROR_INVALID_PARAMETER);
-        return FALSE;
-    }
-    FRAMELESSHELPER_STRING_CONSTANT(user32)
-    FRAMELESSHELPER_STRING_CONSTANT(SetWindowCompositionAttribute)
-    if (!API_USER_AVAILABLE(SetWindowCompositionAttribute)) {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-        return FALSE;
-    }
-    return API_CALL_FUNCTION4(SetWindowCompositionAttribute, hWnd, pvData);
-}
-
-EXTERN_C [[nodiscard]] FRAMELESSHELPER_CORE_API HRESULT WINAPI
-_SetWindowThemeAttribute(const HWND hWnd, const _WINDOWTHEMEATTRIBUTETYPE attrib,
-                         PVOID pvData, const DWORD cbData
-)
-{
-    Q_ASSERT(hWnd);
-    Q_ASSERT(pvData);
-    Q_ASSERT(cbData != 0);
-    if (!hWnd || !pvData || (cbData == 0)) {
-        return E_INVALIDARG;
-    }
-    FRAMELESSHELPER_STRING_CONSTANT(uxtheme)
-    FRAMELESSHELPER_STRING_CONSTANT(SetWindowThemeAttribute)
-    if (!API_THEME_AVAILABLE(SetWindowThemeAttribute)) {
-        return E_NOTIMPL;
-    }
-    return API_CALL_FUNCTION4(SetWindowThemeAttribute, hWnd, attrib, pvData, cbData);
-}
-
-EXTERN_C [[nodiscard]] FRAMELESSHELPER_CORE_API HRESULT WINAPI
-_SetWindowThemeNonClientAttributes(const HWND hWnd, const DWORD dwMask, const DWORD dwAttributes)
-{
-    Q_ASSERT(hWnd);
-    if (!hWnd) {
-        return E_INVALIDARG;
-    }
-    WTA_OPTIONS2 options = {};
-    options.dwFlags = dwAttributes;
-    options.dwMask = dwMask;
-    return _SetWindowThemeAttribute(hWnd, _WTA_NONCLIENT, &options, sizeof(options));
-}
-
-EXTERN_C [[nodiscard]] FRAMELESSHELPER_CORE_API BOOL WINAPI
-_ShouldAppsUseDarkMode(VOID)
-{
-    FRAMELESSHELPER_USE_NAMESPACE
-    if (!WindowsVersionHelper::isWin10OrGreater()) {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-        return FALSE;
-    }
-    FRAMELESSHELPER_STRING_CONSTANT(uxtheme)
-    static const auto pShouldAppsUseDarkMode
-        = reinterpret_cast<ShouldAppsUseDarkModePtr>(
-            SysApiLoader::resolve(kuxtheme, MAKEINTRESOURCEA(132)));
-    if (!pShouldAppsUseDarkMode) {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-        return FALSE;
-    }
-    return pShouldAppsUseDarkMode();
-}
-
-EXTERN_C [[nodiscard]] FRAMELESSHELPER_CORE_API BOOL WINAPI
-_AllowDarkModeForWindow(const HWND hWnd, const BOOL bAllow)
-{
-    Q_ASSERT(hWnd);
-    if (!hWnd) {
-        SetLastError(ERROR_INVALID_PARAMETER);
-        return FALSE;
-    }
-    FRAMELESSHELPER_USE_NAMESPACE
-    if (!WindowsVersionHelper::isWin10OrGreater()) {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-        return FALSE;
-    }
-    FRAMELESSHELPER_STRING_CONSTANT(uxtheme)
-    static const auto pAllowDarkModeForWindow
-        = reinterpret_cast<AllowDarkModeForWindowPtr>(
-            SysApiLoader::resolve(kuxtheme, MAKEINTRESOURCEA(133)));
-    if (!pAllowDarkModeForWindow) {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-        return FALSE;
-    }
-    return pAllowDarkModeForWindow(hWnd, bAllow);
-}
-
-EXTERN_C [[nodiscard]] FRAMELESSHELPER_CORE_API BOOL WINAPI
-_AllowDarkModeForApp(const BOOL bAllow)
-{
-    FRAMELESSHELPER_USE_NAMESPACE
-    if (!WindowsVersionHelper::isWin10OrGreater()) {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-        return FALSE;
-    }
-    FRAMELESSHELPER_STRING_CONSTANT(uxtheme)
-    static const auto pAllowDarkModeForApp
-        = reinterpret_cast<AllowDarkModeForAppPtr>(
-            SysApiLoader::resolve(kuxtheme, MAKEINTRESOURCEA(135)));
-    if (!pAllowDarkModeForApp) {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-        return FALSE;
-    }
-    return pAllowDarkModeForApp(bAllow);
-}
-
-EXTERN_C FRAMELESSHELPER_CORE_API VOID WINAPI
-_FlushMenuThemes(VOID)
-{
-    FRAMELESSHELPER_USE_NAMESPACE
-    if (!WindowsVersionHelper::isWin10OrGreater()) {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-        return;
-    }
-    FRAMELESSHELPER_STRING_CONSTANT(uxtheme)
-    static const auto pFlushMenuThemes
-        = reinterpret_cast<FlushMenuThemesPtr>(
-            SysApiLoader::resolve(kuxtheme, MAKEINTRESOURCEA(136)));
-    if (!pFlushMenuThemes) {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-        return;
-    }
-    pFlushMenuThemes();
-}
-
-EXTERN_C FRAMELESSHELPER_CORE_API VOID WINAPI
-_RefreshImmersiveColorPolicyState(VOID)
-{
-    FRAMELESSHELPER_USE_NAMESPACE
-    if (!WindowsVersionHelper::isWin10OrGreater()) {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-        return;
-    }
-    FRAMELESSHELPER_STRING_CONSTANT(uxtheme)
-    static const auto pRefreshImmersiveColorPolicyState
-        = reinterpret_cast<RefreshImmersiveColorPolicyStatePtr>(
-            SysApiLoader::resolve(kuxtheme, MAKEINTRESOURCEA(104)));
-    if (!pRefreshImmersiveColorPolicyState) {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-        return;
-    }
-    pRefreshImmersiveColorPolicyState();
-}
-
-EXTERN_C [[nodiscard]] FRAMELESSHELPER_CORE_API BOOL WINAPI
-_IsDarkModeAllowedForWindow(const HWND hWnd)
-{
-    Q_ASSERT(hWnd);
-    if (!hWnd) {
-        SetLastError(ERROR_INVALID_PARAMETER);
-        return FALSE;
-    }
-    FRAMELESSHELPER_USE_NAMESPACE
-    if (!WindowsVersionHelper::isWin10OrGreater()) {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-        return FALSE;
-    }
-    FRAMELESSHELPER_STRING_CONSTANT(uxtheme)
-    static const auto pIsDarkModeAllowedForWindow
-        = reinterpret_cast<IsDarkModeAllowedForWindowPtr>(
-            SysApiLoader::resolve(kuxtheme, MAKEINTRESOURCEA(137)));
-    if (!pIsDarkModeAllowedForWindow) {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-        return FALSE;
-    }
-    return pIsDarkModeAllowedForWindow(hWnd);
-}
-
-EXTERN_C [[nodiscard]] FRAMELESSHELPER_CORE_API BOOL WINAPI
-_GetIsImmersiveColorUsingHighContrast(const IMMERSIVE_HC_CACHE_MODE mode)
-{
-    FRAMELESSHELPER_USE_NAMESPACE
-    if (!WindowsVersionHelper::isWin10OrGreater()) {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-        return FALSE;
-    }
-    FRAMELESSHELPER_STRING_CONSTANT(uxtheme)
-    static const auto pGetIsImmersiveColorUsingHighContrast
-        = reinterpret_cast<GetIsImmersiveColorUsingHighContrastPtr>(
-            SysApiLoader::resolve(kuxtheme, MAKEINTRESOURCEA(106)));
-    if (!pGetIsImmersiveColorUsingHighContrast) {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-        return FALSE;
-    }
-    return pGetIsImmersiveColorUsingHighContrast(mode);
-}
-
-EXTERN_C [[nodiscard]] FRAMELESSHELPER_CORE_API HTHEME WINAPI
-_OpenNcThemeData(const HWND hWnd, LPCWSTR pszClassList)
-{
-    Q_ASSERT(hWnd);
-    Q_ASSERT(pszClassList);
-    if (!hWnd || !pszClassList) {
-        SetLastError(ERROR_INVALID_PARAMETER);
-        return nullptr;
-    }
-    FRAMELESSHELPER_USE_NAMESPACE
-    if (!WindowsVersionHelper::isWin10OrGreater()) {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-        return nullptr;
-    }
-    FRAMELESSHELPER_STRING_CONSTANT(uxtheme)
-    static const auto pOpenNcThemeData
-        = reinterpret_cast<OpenNcThemeDataPtr>(
-            SysApiLoader::resolve(kuxtheme, MAKEINTRESOURCEA(49)));
-    if (!pOpenNcThemeData) {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-        return nullptr;
-    }
-    return pOpenNcThemeData(hWnd, pszClassList);
-}
-
-EXTERN_C [[nodiscard]] FRAMELESSHELPER_CORE_API BOOL WINAPI
-_ShouldSystemUseDarkMode(VOID)
-{
-    FRAMELESSHELPER_USE_NAMESPACE
-    if (!WindowsVersionHelper::isWin10OrGreater()) {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-        return FALSE;
-    }
-    FRAMELESSHELPER_STRING_CONSTANT(uxtheme)
-    static const auto pShouldSystemUseDarkMode
-        = reinterpret_cast<ShouldSystemUseDarkModePtr>(
-            SysApiLoader::resolve(kuxtheme, MAKEINTRESOURCEA(138)));
-    if (!pShouldSystemUseDarkMode) {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-        return FALSE;
-    }
-    return pShouldSystemUseDarkMode();
-}
-
-EXTERN_C [[nodiscard]] FRAMELESSHELPER_CORE_API PREFERRED_APP_MODE WINAPI
-_SetPreferredAppMode(const PREFERRED_APP_MODE mode)
-{
-    FRAMELESSHELPER_USE_NAMESPACE
-    if (!WindowsVersionHelper::isWin10OrGreater()) {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-        return PAM_MAX;
-    }
-    FRAMELESSHELPER_STRING_CONSTANT(uxtheme)
-    static const auto pSetPreferredAppMode
-        = reinterpret_cast<SetPreferredAppModePtr>(
-            SysApiLoader::resolve(kuxtheme, MAKEINTRESOURCEA(135)));
-    if (!pSetPreferredAppMode) {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-        return PAM_MAX;
-    }
-    return pSetPreferredAppMode(mode);
-}
-
-EXTERN_C [[nodiscard]] FRAMELESSHELPER_CORE_API BOOL WINAPI
-_IsDarkModeAllowedForApp(VOID)
-{
-    FRAMELESSHELPER_USE_NAMESPACE
-    if (!WindowsVersionHelper::isWin10OrGreater()) {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-        return FALSE;
-    }
-    FRAMELESSHELPER_STRING_CONSTANT(uxtheme)
-    static const auto pIsDarkModeAllowedForApp
-        = reinterpret_cast<IsDarkModeAllowedForAppPtr>(
-            SysApiLoader::resolve(kuxtheme, MAKEINTRESOURCEA(139)));
-    if (!pIsDarkModeAllowedForApp) {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-        return FALSE;
-    }
-    return pIsDarkModeAllowedForApp();
-}
-
-EXTERN_C [[nodiscard]] FRAMELESSHELPER_CORE_API BOOL WINAPI
-_EnableChildWindowDpiMessage2(const HWND hWnd, const BOOL fEnable)
-{
-    Q_ASSERT(hWnd);
-    if (!hWnd) {
-        SetLastError(ERROR_INVALID_PARAMETER);
-        return FALSE;
-    }
-    FRAMELESSHELPER_USE_NAMESPACE
-    if (!WindowsVersionHelper::isWin10OrGreater()) {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-        return FALSE;
-    }
-    using EnableChildWindowDpiMessagePtr = decltype(&::_EnableChildWindowDpiMessage);
-    static const auto pEnableChildWindowDpiMessage = []() -> EnableChildWindowDpiMessagePtr {
-        FRAMELESSHELPER_STRING_CONSTANT(win32u)
-        FRAMELESSHELPER_STRING_CONSTANT(NtUserEnableChildWindowDpiMessage)
-        // EnableChildWindowDpiMessage() was moved to "win32u.dll" and renamed to
-        // "NtUserEnableChildWindowDpiMessage" since Win10 1607.
-        if (const auto pFunc = reinterpret_cast<EnableChildWindowDpiMessagePtr>(
-            SysApiLoader::resolve(kwin32u, kNtUserEnableChildWindowDpiMessage))) {
-            return pFunc;
-        }
-        FRAMELESSHELPER_STRING_CONSTANT(user32)
-        FRAMELESSHELPER_STRING_CONSTANT(EnableChildWindowDpiMessage)
-        // EnableChildWindowDpiMessage() was once a public API, so we can load it by name,
-        // but it got removed in Win10 1607, so we can't link to it directly.
-        if (const auto pFunc = reinterpret_cast<EnableChildWindowDpiMessagePtr>(
-            SysApiLoader::resolve(kuser32, kEnableChildWindowDpiMessage))) {
-            return pFunc;
-        }
-        // EnableChildWindowDpiMessage() was made private since Win10 1607.
-        if (const auto pFunc = reinterpret_cast<EnableChildWindowDpiMessagePtr>(
-            SysApiLoader::resolve(kuser32, MAKEINTRESOURCEA(2704)))) {
-            return pFunc;
-        }
-        return nullptr;
-    }();
-    if (!pEnableChildWindowDpiMessage) {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-        return FALSE;
-    }
-    return pEnableChildWindowDpiMessage(hWnd, fEnable);
-}
-
-EXTERN_C [[nodiscard]] FRAMELESSHELPER_CORE_API BOOL WINAPI
-_EnablePerMonitorDialogScaling2(VOID)
-{
-    FRAMELESSHELPER_USE_NAMESPACE
-    if (!WindowsVersionHelper::isWin10OrGreater()) {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-        return FALSE;
-    }
-    using EnablePerMonitorDialogScalingPtr = decltype(&::_EnablePerMonitorDialogScaling);
-    static const auto pEnablePerMonitorDialogScaling = []() -> EnablePerMonitorDialogScalingPtr {
-        FRAMELESSHELPER_STRING_CONSTANT(user32)
-        FRAMELESSHELPER_STRING_CONSTANT(EnablePerMonitorDialogScaling)
-        // EnablePerMonitorDialogScaling() was once a public API, so we can load it by name,
-        // but it got removed in Win10 1607, so we can't link to it directly.
-        if (const auto pFunc = reinterpret_cast<EnablePerMonitorDialogScalingPtr>(
-            SysApiLoader::resolve(kuser32, kEnablePerMonitorDialogScaling))) {
-            return pFunc;
-        }
-        // EnablePerMonitorDialogScaling() was made private since Win10 1607.
-        if (const auto pFunc = reinterpret_cast<EnablePerMonitorDialogScalingPtr>(
-            SysApiLoader::resolve(kuser32, MAKEINTRESOURCEA(2577)))) {
-            return pFunc;
-        }
-        return nullptr;
-    }();
-    if (!pEnablePerMonitorDialogScaling) {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-        return FALSE;
-    }
-    return pEnablePerMonitorDialogScaling();
-}
-
-EXTERN_C [[nodiscard]] FRAMELESSHELPER_CORE_API UINT WINAPI
-_GetDpiForWindow2(const HWND hWnd)
-{
-    Q_ASSERT(hWnd);
-    if (!hWnd) {
-        SetLastError(ERROR_INVALID_PARAMETER);
-        return 0;
-    }
-    FRAMELESSHELPER_USE_NAMESPACE
-    if (!WindowsVersionHelper::isWin10OrGreater()) {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-        return 0;
-    }
-    using GetDpiForWindowPtr = decltype(&::_GetDpiForWindow);
-    static const auto pGetDpiForWindow = []() -> GetDpiForWindowPtr {
-        FRAMELESSHELPER_STRING_CONSTANT(user32)
-        FRAMELESSHELPER_STRING_CONSTANT(GetDpiForWindow)
-        // GetDpiForWindow() was made public since Win10 1607.
-        if (const auto pFunc = reinterpret_cast<GetDpiForWindowPtr>(
-            SysApiLoader::resolve(kuser32, kGetDpiForWindow))) {
-            return pFunc;
-        }
-        // GetDpiForWindow() was named "GetWindowDPI" before made public.
-        FRAMELESSHELPER_STRING_CONSTANT(GetWindowDPI)
-        if (const auto pFunc = reinterpret_cast<GetDpiForWindowPtr>(
-            SysApiLoader::resolve(kuser32, kGetWindowDPI))) {
-            return pFunc;
-        }
-        // GetWindowDPI() was made private since Win10 1607.
-        if (const auto pFunc = reinterpret_cast<GetDpiForWindowPtr>(
-            SysApiLoader::resolve(kuser32, MAKEINTRESOURCEA(2707)))) {
-            return pFunc;
-        }
-        return nullptr;
-    }();
-    if (!pGetDpiForWindow) {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-        return 0;
-    }
-    return pGetDpiForWindow(hWnd);
-}
-
-EXTERN_C [[nodiscard]] FRAMELESSHELPER_CORE_API int WINAPI
-_GetSystemMetricsForDpi2(const int nIndex, const UINT dpi)
-{
-    Q_ASSERT(nIndex >= 0);
-    Q_ASSERT(dpi != 0);
-    if ((nIndex < 0) || (dpi == 0)) {
-        SetLastError(ERROR_INVALID_PARAMETER);
-        return 0;
-    }
-    FRAMELESSHELPER_USE_NAMESPACE
-    if (!WindowsVersionHelper::isWin10OrGreater()) {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-        return 0;
-    }
-    using GetSystemMetricsForDpiPtr = decltype(&::_GetSystemMetricsForDpi);
-    static const auto pGetSystemMetricsForDpi = []() -> GetSystemMetricsForDpiPtr {
-        FRAMELESSHELPER_STRING_CONSTANT(user32)
-        FRAMELESSHELPER_STRING_CONSTANT(GetSystemMetricsForDpi)
-        // GetSystemMetricsForDpi() was made public since Win10 1607.
-        if (const auto pFunc = reinterpret_cast<GetSystemMetricsForDpiPtr>(
-            SysApiLoader::resolve(kuser32, kGetSystemMetricsForDpi))) {
-            return pFunc;
-        }
-        // GetSystemMetricsForDpi() was named "GetDpiMetrics" before made public,
-        // that is, when in Win10 1507 & 1511.
-        FRAMELESSHELPER_STRING_CONSTANT(GetDpiMetrics)
-        if (const auto pFunc = reinterpret_cast<GetSystemMetricsForDpiPtr>(
-            SysApiLoader::resolve(kuser32, kGetDpiMetrics))) {
-            return pFunc;
-        }
-        return nullptr;
-    }();
-    if (!pGetSystemMetricsForDpi) {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-        return 0;
-    }
-    return pGetSystemMetricsForDpi(nIndex, dpi);
-}
-
-EXTERN_C [[nodiscard]] FRAMELESSHELPER_CORE_API BOOL WINAPI
-_AdjustWindowRectExForDpi2(LPRECT lpRect, const DWORD dwStyle,
-    const BOOL bMenu, const DWORD dwExStyle, const UINT dpi)
-{
-    Q_ASSERT(lpRect);
-    Q_ASSERT(dpi != 0);
-    if (!lpRect || (dpi == 0)) {
-        SetLastError(ERROR_INVALID_PARAMETER);
-        return FALSE;
-    }
-    FRAMELESSHELPER_USE_NAMESPACE
-    if (!WindowsVersionHelper::isWin10OrGreater()) {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-        return FALSE;
-    }
-    using AdjustWindowRectExForDpiPtr = decltype(&::_AdjustWindowRectExForDpi);
-    static const auto pAdjustWindowRectExForDpi = []() -> AdjustWindowRectExForDpiPtr {
-        FRAMELESSHELPER_STRING_CONSTANT(user32)
-        FRAMELESSHELPER_STRING_CONSTANT(AdjustWindowRectExForDpi)
-        // AdjustWindowRectExForDpi() was made public since Win10 1607.
-        if (const auto pFunc = reinterpret_cast<AdjustWindowRectExForDpiPtr>(
-            SysApiLoader::resolve(kuser32, kAdjustWindowRectExForDpi))) {
-            return pFunc;
-        }
-        // AdjustWindowRectExForDpi() was made private in Win10 1507 & 1511.
-        if (const auto pFunc = reinterpret_cast<AdjustWindowRectExForDpiPtr>(
-            SysApiLoader::resolve(kuser32, MAKEINTRESOURCEA(2580)))) {
-            return pFunc;
-        }
-        return nullptr;
-    }();
-    if (!pAdjustWindowRectExForDpi) {
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-        return FALSE;
-    }
-    return pAdjustWindowRectExForDpi(lpRect, dwStyle, bMenu, dwExStyle, dpi);
-}
 
 Q_DECLARE_METATYPE(QMargins)
 
@@ -1033,7 +406,7 @@ static inline void moveWindowToMonitor(const HWND hwnd, const MONITORINFOEXW &ac
     static constexpr const auto defaultDpi = qreal(USER_DEFAULT_SCREEN_DPI);
     const qreal currentDpr = (qreal(Utils::getPrimaryScreenDpi(horizontal)) / defaultDpi);
     const qreal requestedDpr = (qreal(dpi) / defaultDpi);
-    return qRound(qreal(GetSystemMetrics(index)) / currentDpr * requestedDpr);
+    return std::round(qreal(GetSystemMetrics(index)) / currentDpr * requestedDpr);
 }
 
 [[nodiscard]] static inline int getSystemMetrics2(const WId windowId, const int index,
@@ -1053,7 +426,7 @@ static inline void moveWindowToMonitor(const HWND hwnd, const MONITORINFOEXW &ac
     // GetSystemMetrics() will always return a scaled value, so if we want to get an unscaled
     // one, we have to calculate it ourself.
     const qreal dpr = (scaled ? qreal(1) : (qreal(realDpi) / qreal(USER_DEFAULT_SCREEN_DPI)));
-    return qRound(qreal(GetSystemMetrics(index)) / dpr);
+    return std::round(qreal(GetSystemMetrics(index)) / dpr);
 }
 
 [[maybe_unused]] [[nodiscard]] static inline
@@ -1345,8 +718,11 @@ QColor Utils::getDwmColorizationColor()
         if (!registry.isValid()) {
             return kDefaultDarkGrayColor;
         }
-        const DWORD value = registry.value<DWORD>(kColorizationColor).value_or(0);
-        return QColor::fromRgba(value);
+        const QVariant value = registry.value(kColorizationColor);
+        if (!value.isValid()) {
+            return kDefaultDarkGrayColor;
+        }
+        return QColor::fromRgba(qvariant_cast<DWORD>(value));
     };
     if (!API_DWM_AVAILABLE(DwmGetColorizationColor)) {
         return resultFromRegistry();
@@ -1547,7 +923,7 @@ void Utils::syncWmPaintWithDwm()
     Q_ASSERT(m >= 0);
     Q_ASSERT(m < period);
     const qreal m_ms = (1000.0 * qreal(m) / qreal(freq.QuadPart));
-    Sleep(static_cast<DWORD>(qRound(m_ms)));
+    Sleep(static_cast<DWORD>(std::round(m_ms)));
     if (API_CALL_FUNCTION4(timeEndPeriod, ms_granularity) != TIMERR_NOERROR) {
         WARNING << "timeEndPeriod() failed.";
     }
@@ -1584,7 +960,7 @@ quint32 Utils::getPrimaryScreenDpi(const bool horizontal)
             _DEVICE_SCALE_FACTOR factor = _DEVICE_SCALE_FACTOR_INVALID;
             const HRESULT hr = API_CALL_FUNCTION4(GetScaleFactorForMonitor, hMonitor, &factor);
             if (SUCCEEDED(hr) && (factor != _DEVICE_SCALE_FACTOR_INVALID)) {
-                return quint32(qRound(qreal(USER_DEFAULT_SCREEN_DPI) * qreal(factor) / qreal(100)));
+                return quint32(std::round(qreal(USER_DEFAULT_SCREEN_DPI) * qreal(factor) / qreal(100)));
             } else {
                 WARNING << __getSystemErrorMessage(kGetScaleFactorForMonitor, hr);
             }
@@ -1630,6 +1006,8 @@ quint32 Utils::getPrimaryScreenDpi(const bool horizontal)
         HRESULT hr = pD2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, __uuidof(ID2D1Factory),
                                         nullptr, reinterpret_cast<void **>(&d2dFactory));
         if (SUCCEEDED(hr)) {
+            // We want to get the newest system DPI, so refresh the system metrics
+            // manually to ensure that.
             hr = d2dFactory->ReloadSystemMetrics();
             if (SUCCEEDED(hr)) {
                 FLOAT dpiX = 0.0f, dpiY = 0.0f;
@@ -1638,7 +1016,7 @@ quint32 Utils::getPrimaryScreenDpi(const bool horizontal)
                 d2dFactory->GetDesktopDpi(&dpiX, &dpiY);
                 QT_WARNING_POP
                 if ((dpiX > 0.0f) && (dpiY > 0.0f)) {
-                    return (horizontal ? quint32(qRound(dpiX)) : quint32(qRound(dpiY)));
+                    return (horizontal ? quint32(std::round(dpiX)) : quint32(std::round(dpiY)));
                 } else {
                     WARNING << "GetDesktopDpi() failed.";
                 }
@@ -1816,7 +1194,7 @@ quint32 Utils::getFrameBorderThicknessForDpi(const quint32 dpi)
         return 0;
     }
     const qreal dpr = (qreal(dpi) / qreal(USER_DEFAULT_SCREEN_DPI));
-    return qRound(qreal(kDefaultWindowFrameBorderThickness) * dpr);
+    return std::round(qreal(kDefaultWindowFrameBorderThickness) * dpr);
 }
 
 quint32 Utils::getFrameBorderThickness(const WId windowId, const bool scaled)
@@ -1840,10 +1218,10 @@ quint32 Utils::getFrameBorderThickness(const WId windowId, const bool scaled)
         _DWMWA_VISIBLE_FRAME_BORDER_THICKNESS, &value, sizeof(value));
     if (SUCCEEDED(hr)) {
         const qreal dpr = (scaled ? 1.0 : scaleFactor);
-        return qRound(qreal(value) / dpr);
+        return std::round(qreal(value) / dpr);
     } else {
         const qreal dpr = (scaled ? scaleFactor : 1.0);
-        return qRound(qreal(kDefaultWindowFrameBorderThickness) * dpr);
+        return std::round(qreal(kDefaultWindowFrameBorderThickness) * dpr);
     }
 }
 
@@ -1857,10 +1235,9 @@ QColor Utils::getFrameBorderColor(const bool active)
     const bool dark = shouldAppsUseDarkMode();
     if (active) {
         if (isFrameBorderColorized()) {
-            return getDwmColorizationColor();
-        } else {
-            return kDefaultFrameBorderActiveColor;
+            return getDwmAccentColor();
         }
+        return (dark ? kDefaultFrameBorderActiveColor : kDefaultTransparentColor);
     } else {
         return (dark ? kDefaultFrameBorderInactiveColorDark : kDefaultFrameBorderInactiveColorLight);
     }
@@ -2531,14 +1908,21 @@ QColor Utils::getDwmAccentColor()
     // so we'd better also do the same thing.
     // There's no Windows API to get this value, so we can only read it
     // directly from the registry.
+    const QColor alternative = getDwmColorizationColor();
     const RegistryKey registry(RegistryRootKey::CurrentUser, dwmRegistryKey());
     if (!registry.isValid()) {
-        return kDefaultDarkGrayColor;
+        return alternative;
     }
-    const DWORD value = registry.value<DWORD>(kAccentColor).value_or(0);
+    const QVariant value = registry.value(kAccentColor);
+    if (!value.isValid()) {
+        return alternative;
+    }
     // The retrieved value is in the #AABBGGRR format, we need to
     // convert it to the #AARRGGBB format that Qt accepts.
-    const QColor abgr = QColor::fromRgba(value);
+    const QColor abgr = QColor::fromRgba(qvariant_cast<DWORD>(value));
+    if (!abgr.isValid()) {
+        return alternative;
+    }
     return QColor(abgr.blue(), abgr.green(), abgr.red(), abgr.alpha());
 }
 

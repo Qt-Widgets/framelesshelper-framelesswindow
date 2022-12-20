@@ -186,8 +186,6 @@ void FramelessQuickHelperPrivate::attach()
     }
     g_quickHelper()->mutex.unlock();
 
-    window->installEventFilter(this);
-
     SystemParameters params = {};
     params.getWindowId = [window]() -> WId { return window->winId(); };
     params.getWindowFlags = [window]() -> Qt::WindowFlags { return window->flags(); };
@@ -260,7 +258,6 @@ void FramelessQuickHelperPrivate::detach()
         return;
     }
     g_quickHelper()->data.remove(windowId);
-    w->removeEventFilter(this);
     FramelessManager::instance()->removeWindow(windowId);
 }
 
@@ -355,17 +352,21 @@ void FramelessQuickHelperPrivate::setHitTestVisible(QObject *object, const bool 
 
 void FramelessQuickHelperPrivate::showSystemMenu(const QPoint &pos)
 {
-#ifdef Q_OS_WINDOWS
     Q_Q(FramelessQuickHelper);
     const QQuickWindow * const window = q->window();
     if (!window) {
         return;
     }
+    const WId windowId = window->winId();
     const QPoint globalPos = window->mapToGlobal(pos);
     const QPoint nativePos = Utils::toNativePixels(window, globalPos);
-    Utils::showSystemMenu(window->winId(), nativePos, false, [this]() -> bool { return isWindowFixedSize(); });
+#ifdef Q_OS_WINDOWS
+    Utils::showSystemMenu(windowId, nativePos, false, [this]() -> bool { return isWindowFixedSize(); });
+#elif defined(Q_OS_LINUX)
+    Utils::openSystemMenu(windowId, nativePos);
 #else
-    Q_UNUSED(pos);
+    Q_UNUSED(windowId);
+    Q_UNUSED(nativePos);
 #endif
 }
 
@@ -487,7 +488,7 @@ void FramelessQuickHelperPrivate::emitSignalForAllInstances(const QByteArray &si
     if (instances.isEmpty()) {
         return;
     }
-    for (auto &&instance : qAsConst(instances)) {
+    for (auto &&instance : std::as_const(instances)) {
         QMetaObject::invokeMethod(instance, signal.constData());
     }
 }
@@ -656,33 +657,6 @@ FramelessQuickHelper *FramelessQuickHelperPrivate::findOrCreateFramelessHelper(Q
     return instance;
 }
 
-bool FramelessQuickHelperPrivate::eventFilter(QObject *object, QEvent *event)
-{
-    Q_ASSERT(object);
-    Q_ASSERT(event);
-    if (!object || !event) {
-        return false;
-    }
-#ifdef Q_OS_WINDOWS
-    if (!object->isWindowType() || (event->type() != QEvent::WindowStateChange)
-        || FramelessConfig::instance()->isSet(Option::UseCrossPlatformQtImplementation)) {
-        return QObject::eventFilter(object, event);
-    }
-    const auto window = qobject_cast<QQuickWindow *>(object);
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 10, 0))
-    if (Utils::windowStatesToWindowState(window->windowStates()) != Qt::WindowFullScreen) {
-#else
-    if (window->windowState() != Qt::WindowFullScreen) {
-#endif
-        const auto changeEvent = static_cast<QWindowStateChangeEvent *>(event);
-        if (Utils::windowStatesToWindowState(changeEvent->oldState()) == Qt::WindowFullScreen) {
-            Utils::maybeFixupQtInternals(window->winId());
-        }
-    }
-#endif
-    return QObject::eventFilter(object, event);
-}
-
 QRect FramelessQuickHelperPrivate::mapItemGeometryToScene(const QQuickItem * const item) const
 {
     Q_ASSERT(item);
@@ -767,20 +741,20 @@ bool FramelessQuickHelperPrivate::isInTitleBarDraggableArea(const QPoint &pos) c
     QRegion region = titleBarRect;
     const auto systemButtons = {data.windowIconButton, data.contextHelpButton,
                      data.minimizeButton, data.maximizeButton, data.closeButton};
-    for (auto &&button : qAsConst(systemButtons)) {
+    for (auto &&button : std::as_const(systemButtons)) {
         if (button && button->isVisible() && button->isEnabled()) {
             region -= mapItemGeometryToScene(button);
         }
     }
     if (!data.hitTestVisibleItems.isEmpty()) {
-        for (auto &&item : qAsConst(data.hitTestVisibleItems)) {
+        for (auto &&item : std::as_const(data.hitTestVisibleItems)) {
             if (item && item->isVisible() && item->isEnabled()) {
                 region -= mapItemGeometryToScene(item);
             }
         }
     }
     if (!data.hitTestVisibleRects.isEmpty()) {
-        for (auto &&rect : qAsConst(data.hitTestVisibleRects)) {
+        for (auto &&rect : std::as_const(data.hitTestVisibleRects)) {
             if (rect.isValid()) {
                 region -= rect;
             }

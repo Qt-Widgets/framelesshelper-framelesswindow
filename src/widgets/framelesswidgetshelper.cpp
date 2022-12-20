@@ -170,7 +170,7 @@ void FramelessWidgetsHelperPrivate::emitSignalForAllInstances(const QByteArray &
     if (instances.isEmpty()) {
         return;
     }
-    for (auto &&instance : qAsConst(instances)) {
+    for (auto &&instance : std::as_const(instances)) {
         QMetaObject::invokeMethod(instance, signal.constData());
     }
 }
@@ -189,23 +189,18 @@ void FramelessWidgetsHelperPrivate::setBlurBehindWindowEnabled(const bool enable
         return;
     }
     if (Utils::isBlurBehindWindowSupported()) {
-        BlurMode mode = BlurMode::Disable;
+#ifdef Q_OS_WINDOWS
         QPalette palette = m_window->palette();
         if (enable) {
-            if (!m_savedWindowBackgroundColor.isValid()) {
-                m_savedWindowBackgroundColor = palette.color(QPalette::Window);
-            }
-            palette.setColor(QPalette::Window, kDefaultTransparentColor);
-            mode = BlurMode::Default;
-        } else {
-            if (m_savedWindowBackgroundColor.isValid()) {
-                palette.setColor(QPalette::Window, m_savedWindowBackgroundColor);
-                m_savedWindowBackgroundColor = {};
-            }
-            mode = BlurMode::Disable;
+            m_savedWindowBackgroundColor = palette.color(QPalette::Window);
         }
+        palette.setColor(QPalette::Window, (enable ? kDefaultTransparentColor : m_savedWindowBackgroundColor));
         m_window->setPalette(palette);
-        if (Utils::setBlurBehindWindowEnabled(m_window->winId(), mode, color)) {
+#else // !Q_OS_WINDOWS
+        m_window->setAttribute(Qt::WA_TranslucentBackground, enable);
+#endif // Q_OS_WINDOWS
+        if (Utils::setBlurBehindWindowEnabled(m_window->winId(),
+               (enable ? BlurMode::Default : BlurMode::Disable), color)) {
             m_blurBehindWindowEnabled = enable;
             emitSignalForAllInstances(FRAMELESSHELPER_BYTEARRAY_LITERAL("blurBehindWindowEnabledChanged"));
         } else {
@@ -298,8 +293,7 @@ WidgetsSharedHelper *FramelessWidgetsHelperPrivate::findOrCreateSharedHelper(QWi
             return dialogPriv->widgetsSharedHelper();
         }
     }
-    QWidget * const topLevelWindow = (window->nativeParentWidget()
-        ? window->nativeParentWidget() : window->window());
+    QWidget * const topLevelWindow = window->window();
     WidgetsSharedHelper *helper = topLevelWindow->findChild<WidgetsSharedHelper *>();
     if (!helper) {
         helper = new WidgetsSharedHelper;
@@ -317,11 +311,7 @@ FramelessWidgetsHelper *FramelessWidgetsHelperPrivate::findOrCreateFramelessHelp
     }
     QObject *parent = nullptr;
     if (const auto widget = qobject_cast<QWidget *>(object)) {
-        if (QWidget * const nativeParent = widget->nativeParentWidget()) {
-            parent = nativeParent;
-        } else {
-            parent = widget->window();
-        }
+        parent = widget->window();
     } else {
         parent = object;
     }
@@ -427,6 +417,13 @@ void FramelessWidgetsHelperPrivate::attach()
     }
     m_window = window;
 
+    if (!window->testAttribute(Qt::WA_DontCreateNativeAncestors)) {
+        window->setAttribute(Qt::WA_DontCreateNativeAncestors);
+    }
+    if (!window->testAttribute(Qt::WA_NativeWindow)) {
+        window->setAttribute(Qt::WA_NativeWindow);
+    }
+
     g_widgetsHelper()->mutex.lock();
     WidgetsHelperData * const data = getWindowDataMutable();
     if (!data || data->ready) {
@@ -434,15 +431,6 @@ void FramelessWidgetsHelperPrivate::attach()
         return;
     }
     g_widgetsHelper()->mutex.unlock();
-
-    // Without this flag, Qt will always create an invisible native parent window
-    // for any native widgets which will intercept some win32 messages and confuse
-    // our own native event filter, so to prevent some weired bugs from happening,
-    // just disable this feature.
-    window->setAttribute(Qt::WA_DontCreateNativeAncestors);
-    // Force the widget become a native window now so that we can deal with its
-    // win32 events as soon as possible.
-    window->setAttribute(Qt::WA_NativeWindow);
 
     SystemParameters params = {};
     params.getWindowId = [window]() -> WId { return window->winId(); };
@@ -540,9 +528,6 @@ QWidget *FramelessWidgetsHelperPrivate::findTopLevelWindow() const
     Q_ASSERT(p);
     if (p) {
         if (const auto parentWidget = qobject_cast<const QWidget *>(p)) {
-            if (QWidget * const nativeParent = parentWidget->nativeParentWidget()) {
-                return nativeParent;
-            }
             return parentWidget->window();
         }
     }
@@ -657,20 +642,20 @@ bool FramelessWidgetsHelperPrivate::isInTitleBarDraggableArea(const QPoint &pos)
     QRegion region = titleBarRect;
     const auto systemButtons = {data.windowIconButton, data.contextHelpButton,
                      data.minimizeButton, data.maximizeButton, data.closeButton};
-    for (auto &&button : qAsConst(systemButtons)) {
+    for (auto &&button : std::as_const(systemButtons)) {
         if (button && button->isVisible() && button->isEnabled()) {
             region -= mapWidgetGeometryToScene(button);
         }
     }
     if (!data.hitTestVisibleWidgets.isEmpty()) {
-        for (auto &&widget : qAsConst(data.hitTestVisibleWidgets)) {
+        for (auto &&widget : std::as_const(data.hitTestVisibleWidgets)) {
             if (widget && widget->isVisible() && widget->isEnabled()) {
                 region -= mapWidgetGeometryToScene(widget);
             }
         }
     }
     if (!data.hitTestVisibleRects.isEmpty()) {
-        for (auto &&rect : qAsConst(data.hitTestVisibleRects)) {
+        for (auto &&rect : std::as_const(data.hitTestVisibleRects)) {
             if (rect.isValid()) {
                 region -= rect;
             }
@@ -814,16 +799,19 @@ void FramelessWidgetsHelperPrivate::bringWindowToFront()
 
 void FramelessWidgetsHelperPrivate::showSystemMenu(const QPoint &pos)
 {
-#ifdef Q_OS_WINDOWS
     if (!m_window) {
         return;
     }
+    const WId windowId = m_window->winId();
     const QPoint globalPos = m_window->mapToGlobal(pos);
     const QPoint nativePos = Utils::toNativePixels(m_window->windowHandle(), globalPos);
-    Utils::showSystemMenu(m_window->winId(), nativePos, false, [this]() -> bool { return isWindowFixedSize(); });
+#ifdef Q_OS_WINDOWS
+    Utils::showSystemMenu(windowId, nativePos, false, [this]() -> bool { return isWindowFixedSize(); });
+#elif defined(Q_OS_LINUX)
+    Utils::openSystemMenu(windowId, nativePos);
 #else
-    // ### TODO
-    Q_UNUSED(pos);
+    Q_UNUSED(windowId);
+    Q_UNUSED(nativePos);
 #endif
 }
 

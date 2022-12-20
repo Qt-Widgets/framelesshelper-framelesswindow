@@ -55,7 +55,7 @@ Q_LOGGING_CATEGORY(lcFramelessHelperWin, "wangwenx190.framelesshelper.core.impl.
 using namespace Global;
 
 [[maybe_unused]] static constexpr const wchar_t kFallbackTitleBarWindowClassName[] =
-    L"org.wangwenx190.FramelessHelper.FallbackTitleBarWindow\0";
+    L"org.wangwenx190.FramelessHelper.FallbackTitleBarWindow";
 FRAMELESSHELPER_BYTEARRAY_CONSTANT2(Win32MessageTypeName, "windows_generic_MSG")
 FRAMELESSHELPER_STRING_CONSTANT(MonitorFromWindow)
 FRAMELESSHELPER_STRING_CONSTANT(GetMonitorInfoW)
@@ -101,7 +101,7 @@ struct Win32HelperData
 struct Win32Helper
 {
     QMutex mutex;
-    QScopedPointer<FramelessHelperWin> nativeEventFilter;
+    std::unique_ptr<FramelessHelperWin> nativeEventFilter = nullptr;
     QHash<WId, Win32HelperData> data = {};
     QHash<WId, WId> fallbackTitleBarToParentWindowMapping = {};
 };
@@ -524,14 +524,12 @@ void FramelessHelperWin::addWindow(const SystemParameters &params)
     data.params = params;
     data.dpi = {Utils::getWindowDpi(windowId, true), Utils::getWindowDpi(windowId, false)};
     g_win32Helper()->data.insert(windowId, data);
-    if (g_win32Helper()->nativeEventFilter.isNull()) {
-        g_win32Helper()->nativeEventFilter.reset(new FramelessHelperWin);
-        qApp->installNativeEventFilter(g_win32Helper()->nativeEventFilter.data());
+    if (!g_win32Helper()->nativeEventFilter) {
+        g_win32Helper()->nativeEventFilter = std::make_unique<FramelessHelperWin>();
+        qApp->installNativeEventFilter(g_win32Helper()->nativeEventFilter.get());
     }
     g_win32Helper()->mutex.unlock();
     DEBUG.noquote() << "The DPI of window" << hwnd2str(windowId) << "is" << data.dpi;
-    // Some Qt internals have to be corrected.
-    Utils::maybeFixupQtInternals(windowId);
     // Qt maintains a frame margin internally, we need to update it accordingly
     // otherwise we'll get lots of warning messages when we change the window
     // geometry, it will also affect the final window geometry because QPA will
@@ -586,8 +584,8 @@ void FramelessHelperWin::removeWindow(const WId windowId)
     }
     g_win32Helper()->data.remove(windowId);
     if (g_win32Helper()->data.isEmpty()) {
-        if (!g_win32Helper()->nativeEventFilter.isNull()) {
-            qApp->removeNativeEventFilter(g_win32Helper()->nativeEventFilter.data());
+        if (g_win32Helper()->nativeEventFilter) {
+            qApp->removeNativeEventFilter(g_win32Helper()->nativeEventFilter.get());
             g_win32Helper()->nativeEventFilter.reset();
         }
     }
@@ -1066,7 +1064,7 @@ bool FramelessHelperWin::nativeEventFilter(const QByteArray &eventType, void *me
                 // Make the border a little wider to let the user easy to resize on corners.
                 const qreal scaleFactor = ((isTop || isBottom) ? 2.0 : 1.0);
                 const int frameSizeX = Utils::getResizeBorderThickness(windowId, true, true);
-                const int scaledFrameSizeX = qRound(qreal(frameSizeX) * scaleFactor);
+                const int scaledFrameSizeX = std::round(qreal(frameSizeX) * scaleFactor);
                 const bool isLeft = (nativeLocalPos.x < scaledFrameSizeX);
                 const bool isRight = (nativeLocalPos.x >= (width - scaledFrameSizeX));
                 if (dontOverrideCursor && (isTop || isBottom || isLeft || isRight)) {
@@ -1145,8 +1143,8 @@ bool FramelessHelperWin::nativeEventFilter(const QByteArray &eventType, void *me
         const qreal newDpr = Utils::roundScaleFactor(qreal(newDpi) / defaultDpi);
         const QSizeF newSize = (oldSize / oldDpr * newDpr);
         const auto suggestedSize = reinterpret_cast<LPSIZE>(lParam);
-        suggestedSize->cx = qRound(newSize.width());
-        suggestedSize->cy = qRound(newSize.height());
+        suggestedSize->cx = std::round(newSize.width());
+        suggestedSize->cy = std::round(newSize.height());
         // If the window frame is visible, we need to expand the suggested size, currently
         // it's pure client size, we need to add the frame size to it. Windows expects a
         // full window size, including the window frame.

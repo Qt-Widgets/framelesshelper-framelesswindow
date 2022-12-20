@@ -25,7 +25,6 @@
 #pragma once
 
 #include "framelesshelperquick_global.h"
-#include "framelessquickhelper.h"
 
 QT_BEGIN_NAMESPACE
 class QQuickItem;
@@ -33,6 +32,9 @@ QT_END_NAMESPACE
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
 
+class FramelessQuickHelper;
+class QuickMicaMaterial;
+class QuickWindowBorder;
 struct QuickHelperData;
 
 class FRAMELESSHELPER_QUICK_API FramelessQuickHelperPrivate : public QObject
@@ -83,9 +85,6 @@ public:
 
     Q_NODISCARD static FramelessQuickHelper *findOrCreateFramelessHelper(QObject *object);
 
-protected:
-    Q_NODISCARD bool eventFilter(QObject *object, QEvent *event) override;
-
 private:
     Q_NODISCARD QRect mapItemGeometryToScene(const QQuickItem * const item) const;
     Q_NODISCARD bool isInSystemButtons(const QPoint &pos, QuickGlobal::SystemButtonType *button) const;
@@ -97,7 +96,7 @@ private:
     void rebindWindow();
 
 private:
-    QPointer<FramelessQuickHelper> q_ptr = nullptr;
+    FramelessQuickHelper *q_ptr = nullptr;
     QColor m_savedWindowBackgroundColor = {};
     bool m_blurBehindWindowEnabled = false;
     std::optional<bool> m_extendIntoTitleBar = std::nullopt;

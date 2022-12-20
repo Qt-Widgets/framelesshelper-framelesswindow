@@ -58,15 +58,17 @@ win32 {
         $$CORE_SRC_DIR/framelesshelper_win.cpp \
         $$CORE_SRC_DIR/utils_win.cpp \
         $$CORE_SRC_DIR/registrykey.cpp \
-        $$CORE_SRC_DIR/winverhelper.cpp
+        $$CORE_SRC_DIR/winverhelper.cpp \
+        $$CORE_SRC_DIR/platformsupport_win.cpp
     LIBS += -luser32 -lgdi32 -lshell32
 }
 
 unix:!macx {
-    CONFIG += link_pkgconfig
-    PKGCONFIG += gtk+-3.0 xcb
-    DEFINES += GDK_VERSION_MIN_REQUIRED=GDK_VERSION_3_6
-    SOURCES += $$CORE_SRC_DIR/utils_linux.cpp
+    HEADERS += \
+        $$CORE_PUB_INC_DIR/framelesshelper_linux.h
+    SOURCES += \
+        $$CORE_SRC_DIR/utils_linux.cpp \
+        $$CORE_SRC_DIR/platformsupport_linux.cpp
 }
 
 macx {

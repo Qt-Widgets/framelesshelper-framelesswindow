@@ -23,6 +23,12 @@ You can join our [Discord channel](https://discord.gg/grrM4Tmesy) to communicate
 - Examples: Add demo projects that have transparent background and doesn't have rectangular window frame.
 - Feature requests are welcome!
 
+## Highlights v2.4
+
+- Widgets: Nested frameless windows are supported now!
+- Linux: There have been many improvements to the Linux/X11 implementation! Most of them won't be directly visible to the user, but the code quality has been greatly improved.
+- Routine bug fixes and internal refactorings.
+
 ## Highlights v2.3
 
 - Widgets & Quick: When you clicks the window icon, the system menu will now popup, and when you double clicks it, the window will be closed. This emulates the traditional window behavior on Windows.
@@ -126,8 +132,6 @@ cmake -DCMAKE_PREFIX_PATH=<YOUR_QT_SDK_DIR_PATH> -DCMAKE_INSTALL_PREFIX=<WHERE_Y
 cmake --build . --config Release --target all --parallel
 cmake --install . --config Release --strip
 ```
-
-**IMPORTANT NOTE**: On Linux you need to install the _GTK3_ and _X11_ development packages first.
 
 Once the compilation and installation is done, you will be able to use the `find_package(FramelessHelper REQUIRED COMPONENTS Core Widgets Quick)` command to find and link to the FramelessHelper library. But before doing that, please make sure CMake knows where to find FramelessHelper, by passing the `CMAKE_PREFIX_PATH` variable to it. For example: `-DCMAKE_PREFIX_PATH=C:/my-cmake-packages;C:/my-toolchain;etc...`. Build FramelessHelper as a sub-directory of your CMake project is of course also supported. The supported FramelessHelper target names are `FramelessHelper::FramelessHelperCore`, `FramelessHelper::FramelessHelperWidgets` and `FramelessHelper::FramelessHelperQuick`.
 

@@ -79,14 +79,20 @@ const FramelessDialogPrivate *FramelessDialogPrivate::get(const FramelessDialog 
 void FramelessDialogPrivate::initialize()
 {
     Q_Q(FramelessDialog);
+    // Without this flag, Qt will always create an invisible native parent window
+    // for any native widgets which will intercept some win32 messages and confuse
+    // our own native event filter, so to prevent some weired bugs from happening,
+    // just disable this feature.
+    q->setAttribute(Qt::WA_DontCreateNativeAncestors);
+    q->setAttribute(Qt::WA_NativeWindow);
     FramelessWidgetsHelper::get(q)->extendsContentIntoTitleBar();
-    m_helper.reset(new WidgetsSharedHelper(this));
-    m_helper->setup(q);
+    m_sharedHelper = new WidgetsSharedHelper(this);
+    m_sharedHelper->setup(q);
 }
 
 WidgetsSharedHelper *FramelessDialogPrivate::widgetsSharedHelper() const
 {
-    return (m_helper.isNull() ? nullptr : m_helper.data());
+    return m_sharedHelper;
 }
 
 FramelessDialog::FramelessDialog(QWidget *parent)

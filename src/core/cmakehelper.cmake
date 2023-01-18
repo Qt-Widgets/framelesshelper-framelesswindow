@@ -82,7 +82,7 @@ function(setup_compile_params arg_target)
             target_link_options(${arg_target} PRIVATE /SAFESEH)
         endif()
         if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-            target_link_options(${arg_target} PRIVATE $<$<NOT:$<CONFIG:Debug>>:/HIGHENTROPYVA>)
+            target_link_options(${arg_target} PRIVATE /HIGHENTROPYVA)
         endif()
         if(MSVC_VERSION GREATER_EQUAL 1915) # Visual Studio 2017 version 15.8
             target_compile_options(${arg_target} PRIVATE $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:/JMC>)
@@ -187,6 +187,9 @@ function(setup_gui_app arg_target)
 endfunction()
 
 function(setup_package_export arg_target arg_path arg_public arg_alias arg_private)
+    if(FRAMELESSHELPER_NO_INSTALL)
+        return()
+    endif()
     include(GNUInstallDirs)
     set(__targets ${arg_target})
     if(TARGET ${arg_target}_resources_1)
@@ -299,29 +302,31 @@ function(deploy_qt_runtime arg_target)
     elseif(UNIX)
         # TODO
     endif()
-    include(GNUInstallDirs)
-    install(TARGETS ${arg_target}
-        BUNDLE  DESTINATION .
-        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
-    )
-    if(QT_VERSION VERSION_GREATER_EQUAL "6.3")
-        set(__deploy_script)
-        if(${__is_quick_app})
-            qt_generate_deploy_qml_app_script(
-                TARGET ${arg_target}
-                FILENAME_VARIABLE __deploy_script
-                #MACOS_BUNDLE_POST_BUILD
-                NO_UNSUPPORTED_PLATFORM_ERROR
-                DEPLOY_USER_QML_MODULES_ON_UNSUPPORTED_PLATFORM
-            )
-        else()
-            qt_generate_deploy_app_script(
-                TARGET ${arg_target}
-                FILENAME_VARIABLE __deploy_script
-                NO_UNSUPPORTED_PLATFORM_ERROR
-            )
+    if(NOT FRAMELESSHELPER_NO_INSTALL)
+        include(GNUInstallDirs)
+        install(TARGETS ${arg_target}
+            BUNDLE  DESTINATION .
+            RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+        )
+        if(QT_VERSION VERSION_GREATER_EQUAL "6.3")
+            set(__deploy_script)
+            if(${__is_quick_app})
+                qt_generate_deploy_qml_app_script(
+                    TARGET ${arg_target}
+                    FILENAME_VARIABLE __deploy_script
+                    #MACOS_BUNDLE_POST_BUILD
+                    NO_UNSUPPORTED_PLATFORM_ERROR
+                    DEPLOY_USER_QML_MODULES_ON_UNSUPPORTED_PLATFORM
+                )
+            else()
+                qt_generate_deploy_app_script(
+                    TARGET ${arg_target}
+                    FILENAME_VARIABLE __deploy_script
+                    NO_UNSUPPORTED_PLATFORM_ERROR
+                )
+            endif()
+            install(SCRIPT "${__deploy_script}")
         endif()
-        install(SCRIPT "${__deploy_script}")
     endif()
 endfunction()
 
@@ -352,10 +357,6 @@ function(setup_translations arg_target)
     if(DEFINED TRANSLATION_ARGS_QM_DIR)
         set(__qm_dir "${TRANSLATION_ARGS_QM_DIR}")
     endif()
-    set(__inst_dir translations)
-    if(DEFINED TRANSLATION_ARGS_INSTALL_DIR)
-        set(__inst_dir "${TRANSLATION_ARGS_INSTALL_DIR}")
-    endif()
     set(__ts_files)
     foreach(__locale ${TRANSLATION_ARGS_LOCALES})
         list(APPEND __ts_files "${__ts_dir}/${arg_target}_${__locale}.ts")
@@ -374,5 +375,11 @@ function(setup_translations arg_target)
             -nounfinished # Don't include unfinished translations (to save file size).
             -removeidentical # Don't include translations that are the same with their original texts (to save file size).
     )
-    install(FILES ${__qm_files} DESTINATION "${__inst_dir}")
+    if(NOT FRAMELESSHELPER_NO_INSTALL)
+        set(__inst_dir translations)
+        if(DEFINED TRANSLATION_ARGS_INSTALL_DIR)
+            set(__inst_dir "${TRANSLATION_ARGS_INSTALL_DIR}")
+        endif()
+        install(FILES ${__qm_files} DESTINATION "${__inst_dir}")
+    endif()
 endfunction()

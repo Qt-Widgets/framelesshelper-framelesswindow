@@ -23,7 +23,7 @@
  */
 
 #include <QtWidgets/qapplication.h>
-#include <framelessconfig_p.h>
+#include <FramelessHelper/Core/private/framelessconfig_p.h>
 #include <clocale>
 #include "dialog.h"
 #include "../shared/log.h"
@@ -39,6 +39,12 @@ int main(int argc, char *argv[])
     // Not necessary, but better call this function, before the construction
     // of any Q(Core|Gui)Application instances.
     FramelessHelper::Widgets::initialize();
+
+#if 0
+    if (!qEnvironmentVariableIsSet("QT_WIDGETS_RHI")) {
+        qputenv("QT_WIDGETS_RHI", FRAMELESSHELPER_BYTEARRAY_LITERAL("1"));
+    }
+#endif
 
     const auto application = std::make_unique<QApplication>(argc, argv);
 

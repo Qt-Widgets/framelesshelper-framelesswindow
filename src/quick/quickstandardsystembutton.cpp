@@ -26,8 +26,8 @@
 
 #include "quickstandardsystembutton_p.h"
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
-#include <framelessmanager_p.h>
-#include <utils.h>
+#include <FramelessHelper/Core/private/framelessmanager_p.h>
+#include <FramelessHelper/Core/utils.h>
 #include <QtQuick/qquickwindow.h>
 #include <QtQuick/private/qquickitem_p.h>
 #include <QtQuick/private/qquickanchors_p.h>
@@ -70,9 +70,9 @@ QuickGlobal::SystemButtonType QuickStandardSystemButton::buttonType() const
     return m_buttonType;
 }
 
-QString QuickStandardSystemButton::code() const
+QString QuickStandardSystemButton::glyph() const
 {
-    return m_code;
+    return m_glyph;
 }
 
 QColor QuickStandardSystemButton::normalColor() const
@@ -127,23 +127,23 @@ void QuickStandardSystemButton::setButtonType(const QuickGlobal::SystemButtonTyp
         return;
     }
     m_buttonType = type;
-    setCode(Utils::getSystemButtonIconCode(
+    setGlyph(Utils::getSystemButtonGlyph(
         FRAMELESSHELPER_ENUM_QUICK_TO_CORE(SystemButtonType, m_buttonType)));
     Q_EMIT buttonTypeChanged();
 }
 
-void QuickStandardSystemButton::setCode(const QString &value)
+void QuickStandardSystemButton::setGlyph(const QString &value)
 {
     Q_ASSERT(!value.isEmpty());
     if (value.isEmpty()) {
         return;
     }
-    if (m_code == value) {
+    if (m_glyph == value) {
         return;
     }
-    m_code = value;
-    m_contentItem->setText(m_code);
-    Q_EMIT codeChanged();
+    m_glyph = value;
+    m_contentItem->setText(m_glyph);
+    Q_EMIT glyphChanged();
 }
 
 void QuickStandardSystemButton::setNormalColor(const QColor &value)

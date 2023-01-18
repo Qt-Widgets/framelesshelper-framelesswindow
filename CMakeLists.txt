@@ -34,13 +34,14 @@ project(FramelessHelper
 option(FRAMELESSHELPER_BUILD_STATIC "Build FramelessHelper as a static library." OFF)
 option(FRAMELESSHELPER_BUILD_WIDGETS "Build FramelessHelper's Widgets module." ON)
 option(FRAMELESSHELPER_BUILD_QUICK "Build FramelessHelper's Quick module." ON)
-option(FRAMELESSHELPER_BUILD_EXAMPLES "Build FramelessHelper demo applications." ON)
-option(FRAMELESSHELPER_EXAMPLES_DEPLOYQT "Deploy the Qt framework after building the demo projects." ON)
+option(FRAMELESSHELPER_BUILD_EXAMPLES "Build FramelessHelper demo applications." OFF)
+option(FRAMELESSHELPER_EXAMPLES_DEPLOYQT "Deploy the Qt framework after building the demo projects." OFF)
 option(FRAMELESSHELPER_NO_DEBUG_OUTPUT "Suppress the debug messages from FramelessHelper." OFF)
 option(FRAMELESSHELPER_NO_BUNDLE_RESOURCE "Do not bundle any resources within FramelessHelper." OFF)
 option(FRAMELESSHELPER_NO_PRIVATE "Do not use any private functionalities from Qt." OFF)
 option(FRAMELESSHELPER_ENABLE_VCLTL "MSVC only: link to the system MSVCRT/UCRT and get rid of API sets." OFF)
 option(FRAMELESSHELPER_NO_PERMISSIVE_CHECKS "MSVC only: disable the additional permissive checks." OFF)
+option(FRAMELESSHELPER_NO_INSTALL "Don't install any files." OFF)
 
 if(FRAMELESSHELPER_NO_BUNDLE_RESOURCE)
     message(WARNING "Nothing will be embeded into FramelessHelper, the chrome buttons will have no icon.")
@@ -74,15 +75,15 @@ if(NOT DEFINED CMAKE_DEBUG_POSTFIX)
 endif()
 
 if(NOT DEFINED CMAKE_RUNTIME_OUTPUT_DIRECTORY)
-    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/bin)
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/bin")
 endif()
 
 if(NOT DEFINED CMAKE_LIBRARY_OUTPUT_DIRECTORY)
-    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib)
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/lib")
 endif()
 
 if(NOT DEFINED CMAKE_ARCHIVE_OUTPUT_DIRECTORY)
-    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib)
+    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/lib")
 endif()
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -138,6 +139,13 @@ if(MSVC)
     endif()
 endif()
 
+if(NOT DEFINED QML_IMPORT_PATH)
+    set(QML_IMPORT_PATH)
+endif()
+list(APPEND QML_IMPORT_PATH "${PROJECT_BINARY_DIR}/qml")
+list(REMOVE_DUPLICATES QML_IMPORT_PATH)
+set(QML_IMPORT_PATH ${QML_IMPORT_PATH} CACHE STRING "Qt Creator extra QML import paths" FORCE)
+
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui)
 
@@ -156,11 +164,13 @@ configure_package_config_file(${CMAKE_CURRENT_SOURCE_DIR}/${PROJECT_NAME}Config.
     NO_CHECK_REQUIRED_COMPONENTS_MACRO
 )
 
-install(FILES
-    "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake"
-    "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake"
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
-)
+if(NOT FRAMELESSHELPER_NO_INSTALL)
+    install(FILES
+        "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake"
+        "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake"
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+    )
+endif()
 
 if(TARGET Qt${QT_VERSION_MAJOR}::Core AND TARGET Qt${QT_VERSION_MAJOR}::Gui)
     add_subdirectory(src)

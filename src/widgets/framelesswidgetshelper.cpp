@@ -37,9 +37,9 @@
 #include <QtGui/qwindow.h>
 #include <QtGui/qpalette.h>
 #include <QtWidgets/qwidget.h>
-#include <framelessmanager.h>
-#include <framelessconfig_p.h>
-#include <utils.h>
+#include <FramelessHelper/Core/framelessmanager.h>
+#include <FramelessHelper/Core/private/framelessconfig_p.h>
+#include <FramelessHelper/Core/utils.h>
 
 #ifndef QWIDGETSIZE_MAX
 #  define QWIDGETSIZE_MAX ((1 << 24) - 1)
@@ -689,8 +689,7 @@ void FramelessWidgetsHelperPrivate::setSystemButtonState(const SystemButtonType 
     QWidget *widgetButton = nullptr;
     switch (button) {
     case SystemButtonType::Unknown:
-        Q_ASSERT(false);
-        break;
+        Q_UNREACHABLE_RETURN(void(0));
     case SystemButtonType::WindowIcon:
         if (data.windowIconButton) {
             widgetButton = data.windowIconButton;
@@ -843,8 +842,7 @@ void FramelessWidgetsHelperPrivate::setSystemButton(QWidget *widget, const Syste
     }
     switch (buttonType) {
     case SystemButtonType::Unknown:
-        Q_ASSERT(false);
-        break;
+        Q_UNREACHABLE_RETURN(void(0));
     case SystemButtonType::WindowIcon:
         data->windowIconButton = widget;
         break;

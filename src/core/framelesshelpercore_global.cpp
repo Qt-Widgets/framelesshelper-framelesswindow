@@ -197,8 +197,8 @@ void initialize()
     Utils::fixupDialogsDpiScaling();
 #endif
 
-    // This attribute is known to be __NOT__ compatible with QGLWidget.
-    // Please consider migrating to the recommended QOpenGLWidget instead.
+    // We need this flag to enable nested frameless windows, however,
+    // this flag is known to be __NOT__ compatible with QGLWidget.
     QCoreApplication::setAttribute(Qt::AA_DontCreateNativeWidgetSiblings);
 
 #if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))

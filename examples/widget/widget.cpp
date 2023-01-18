@@ -32,11 +32,11 @@
 #include <QtWidgets/qlabel.h>
 #include <QtWidgets/qboxlayout.h>
 #include <QtWidgets/qfileiconprovider.h>
-#include <FramelessManager>
-#include <Utils>
-#include <FramelessWidgetsHelper>
-#include <StandardTitleBar>
-#include <StandardSystemButton>
+#include <FramelessHelper/Core/framelessmanager.h>
+#include <FramelessHelper/Core/utils.h>
+#include <FramelessHelper/Widgets/framelesswidgetshelper.h>
+#include <FramelessHelper/Widgets/standardtitlebar.h>
+#include <FramelessHelper/Widgets/standardsystembutton.h>
 #include "../shared/settings.h"
 
 extern template void Settings::set<QRect>(const QString &, const QString &, const QRect &);
@@ -128,15 +128,17 @@ void Widget::initialize()
 
     FramelessWidgetsHelper *helper = FramelessWidgetsHelper::get(this);
     helper->setTitleBarWidget(m_titleBar);
+#ifndef Q_OS_MACOS
     helper->setSystemButton(m_titleBar->minimizeButton(), SystemButtonType::Minimize);
     helper->setSystemButton(m_titleBar->maximizeButton(), SystemButtonType::Maximize);
     helper->setSystemButton(m_titleBar->closeButton(), SystemButtonType::Close);
+#endif // Q_OS_MACOS
     connect(helper, &FramelessWidgetsHelper::ready, this, [this, helper](){
         const QString objName = objectName();
         const auto savedGeometry = Settings::get<QRect>(objName, kGeometry);
         if (savedGeometry.isValid() && !parent()) {
             const auto savedDpr = Settings::get<qreal>(objName, kDevicePixelRatio);
-            // Qt doesn't support dpi < 1.
+            // Qt doesn't support dpr < 1.
             const qreal oldDpr = std::max(savedDpr, qreal(1));
             const qreal scale = (devicePixelRatioF() / oldDpr);
             setGeometry({savedGeometry.topLeft() * scale, savedGeometry.size() * scale});

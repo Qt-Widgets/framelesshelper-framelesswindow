@@ -10,10 +10,10 @@
 #include <QtWidgets/qboxlayout.h>
 #include <QtWidgets/qfileiconprovider.h>
 #include <QtWidgets/qmessagebox.h>
-#include <StandardTitleBar>
-#include <FramelessWidgetsHelper>
-#include <StandardSystemButton>
-#include <private/framelesswidgetshelper_p.h>
+#include <FramelessHelper/Widgets/standardtitlebar.h>
+#include <FramelessHelper/Widgets/framelesswidgetshelper.h>
+#include <FramelessHelper/Widgets/standardsystembutton.h>
+#include <FramelessHelper/Widgets/private/framelesswidgetshelper_p.h>
 #include "../shared/settings.h"
 
 extern template void Settings::set<QRect>(const QString &, const QString &, const QRect &);
@@ -52,7 +52,9 @@ void Dialog::setupUi()
 
     titleBar = new StandardTitleBar(this);
     titleBar->setWindowIconVisible(true);
+#ifndef Q_OS_MACOS
     titleBar->maximizeButton()->hide();
+#endif // Q_OS_MACOS
 
     label = new QLabel(tr("Find &what:"));
     lineEdit = new QLineEdit;
@@ -124,9 +126,11 @@ void Dialog::setupUi()
 
     FramelessWidgetsHelper *helper = FramelessWidgetsHelper::get(this);
     helper->setTitleBarWidget(titleBar);
+#ifndef Q_OS_MACOS
     helper->setSystemButton(titleBar->minimizeButton(), SystemButtonType::Minimize);
     helper->setSystemButton(titleBar->maximizeButton(), SystemButtonType::Maximize);
     helper->setSystemButton(titleBar->closeButton(), SystemButtonType::Close);
+#endif // Q_OS_MACOS
     // Special hack to disable the overriding of the mouse cursor, it's totally different
     // with making the window un-resizable: we still want the window be able to resize
     // programatically, but we also want the user not able to resize the window manually.
@@ -136,7 +140,7 @@ void Dialog::setupUi()
         const auto savedGeometry = Settings::get<QRect>({}, kGeometry);
         if (savedGeometry.isValid() && !parent()) {
             const auto savedDpr = Settings::get<qreal>({}, kDevicePixelRatio);
-            // Qt doesn't support dpi < 1.
+            // Qt doesn't support dpr < 1.
             const qreal oldDpr = std::max(savedDpr, qreal(1));
             const qreal scale = (devicePixelRatioF() / oldDpr);
             setGeometry({savedGeometry.topLeft() * scale, savedGeometry.size() * scale});

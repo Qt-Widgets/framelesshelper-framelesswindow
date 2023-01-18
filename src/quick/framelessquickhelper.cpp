@@ -38,11 +38,11 @@
 #  include <QtQuickTemplates2/private/qquickabstractbutton_p.h>
 #  include <QtQuickTemplates2/private/qquickabstractbutton_p_p.h>
 #endif // FRAMELESSHELPER_QUICK_NO_PRIVATE
-#include <framelessmanager.h>
-#include <framelessconfig_p.h>
-#include <utils.h>
+#include <FramelessHelper/Core/framelessmanager.h>
+#include <FramelessHelper/Core/private/framelessconfig_p.h>
+#include <FramelessHelper/Core/utils.h>
 #ifdef Q_OS_WINDOWS
-#  include <winverhelper_p.h>
+#  include <FramelessHelper/Core/private/winverhelper_p.h>
 #endif // Q_OS_WINDOWS
 
 #ifndef QWINDOWSIZE_MAX
@@ -275,8 +275,7 @@ void FramelessQuickHelperPrivate::setSystemButton(QQuickItem *item, const QuickG
     }
     switch (buttonType) {
     case QuickGlobal::SystemButtonType::Unknown:
-        Q_ASSERT(false);
-        break;
+        Q_UNREACHABLE_RETURN(static_cast<void>(0));
     case QuickGlobal::SystemButtonType::WindowIcon:
         data->windowIconButton = item;
         break;
@@ -800,8 +799,7 @@ void FramelessQuickHelperPrivate::setSystemButtonState(const QuickGlobal::System
     QQuickAbstractButton *quickButton = nullptr;
     switch (button) {
     case QuickGlobal::SystemButtonType::Unknown:
-        Q_ASSERT(false);
-        break;
+        Q_UNREACHABLE_RETURN(void(0));
     case QuickGlobal::SystemButtonType::WindowIcon:
         if (data.windowIconButton) {
             if (const auto btn = qobject_cast<QQuickAbstractButton *>(data.windowIconButton)) {

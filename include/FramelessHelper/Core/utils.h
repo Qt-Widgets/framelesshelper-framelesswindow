@@ -49,7 +49,7 @@ namespace Utils
     Qt::Edges calculateWindowEdges(const QWindow *window, const QPoint &pos);
 FRAMELESSHELPER_CORE_API void startSystemMove(QWindow *window, const QPoint &globalPos);
 FRAMELESSHELPER_CORE_API void startSystemResize(QWindow *window, const Qt::Edges edges, const QPoint &globalPos);
-[[nodiscard]] FRAMELESSHELPER_CORE_API QString getSystemButtonIconCode(const Global::SystemButtonType button);
+[[nodiscard]] FRAMELESSHELPER_CORE_API QString getSystemButtonGlyph(const Global::SystemButtonType button);
 [[nodiscard]] FRAMELESSHELPER_CORE_API QWindow *findWindow(const WId windowId);
 FRAMELESSHELPER_CORE_API void moveWindowToDesktopCenter(
     const Global::GetWindowScreenCallback &getWindowScreen,
@@ -80,6 +80,7 @@ FRAMELESSHELPER_CORE_API void registerThemeChangeNotification();
 [[nodiscard]] FRAMELESSHELPER_CORE_API QPoint fromNativePixels(const QWindow *window, const QPoint &point);
 [[nodiscard]] FRAMELESSHELPER_CORE_API QSize fromNativePixels(const QWindow *window, const QSize &size);
 [[nodiscard]] FRAMELESSHELPER_CORE_API QRect fromNativePixels(const QWindow *window, const QRect &rect);
+[[nodiscard]] FRAMELESSHELPER_CORE_API int horizontalAdvance(const QFontMetrics &fm, const QString &str);
 
 #ifdef Q_OS_WINDOWS
 [[nodiscard]] FRAMELESSHELPER_CORE_API bool isWindowsVersionOrGreater(const Global::WindowsVersion version);

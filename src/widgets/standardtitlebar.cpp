@@ -26,10 +26,12 @@
 #include "standardtitlebar_p.h"
 #include "standardsystembutton.h"
 #include "framelesswidgetshelper.h"
+#include <FramelessHelper/Core/utils.h>
 #include <QtCore/qcoreevent.h>
 #include <QtCore/qtimer.h>
 #include <QtGui/qpainter.h>
 #include <QtGui/qevent.h>
+#include <QtGui/qfontmetrics.h>
 #include <QtWidgets/qboxlayout.h>
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
@@ -132,6 +134,32 @@ ChromePalette *StandardTitleBarPrivate::chromePalette() const
     return m_chromePalette;
 }
 
+QFont StandardTitleBarPrivate::defaultFont() const
+{
+    Q_Q(const StandardTitleBar);
+    QFont font = q->font();
+    font.setPointSize(kDefaultTitleBarFontPointSize);
+    return font;
+}
+
+StandardTitleBarPrivate::FontMetrics StandardTitleBarPrivate::titleLabelSize() const
+{
+    if (!m_window) {
+        return {};
+    }
+    const QString text = m_window->windowTitle();
+    if (text.isEmpty()) {
+        return {};
+    }
+    const QFont font = m_titleFont.value_or(defaultFont());
+    const QFontMetrics fontMetrics(font);
+    return {
+        /* .width */ Utils::horizontalAdvance(fontMetrics, text),
+        /* .height */ fontMetrics.height(),
+        /* .ascent */ fontMetrics.ascent()
+    };
+}
+
 void StandardTitleBarPrivate::paintTitleBar(QPaintEvent *event)
 {
     Q_ASSERT(event);
@@ -154,41 +182,37 @@ void StandardTitleBarPrivate::paintTitleBar(QPaintEvent *event)
     painter.setRenderHints(QPainter::Antialiasing |
         QPainter::TextAntialiasing | QPainter::SmoothPixmapTransform);
     painter.fillRect(QRect(QPoint(0, 0), q->size()), backgroundColor);
-    int titleLabelLeftOffset = 0;
-    if (m_windowIconVisible) {
-        const QIcon icon = m_window->windowIcon();
-        if (!icon.isNull()) {
-            const QRect rect = windowIconRect();
-            titleLabelLeftOffset = (rect.left() + rect.width());
-            icon.paint(&painter, rect);
-        }
-    }
     if (m_titleLabelVisible) {
         const QString text = m_window->windowTitle();
         if (!text.isEmpty()) {
             painter.setPen(foregroundColor);
-            painter.setFont(m_titleFont.value_or([q]() -> QFont {
-                QFont f = q->font();
-                f.setPointSize(kDefaultTitleBarFontPointSize);
-                return f;
-            }()));
-            const auto rect = [this, q, titleLabelLeftOffset]() -> QRect {
-                const int w = q->width();
-                int leftMargin = 0;
-                int rightMargin = 0;
+            painter.setFont(m_titleFont.value_or(defaultFont()));
+            const auto pos = [this, q]() -> QPoint {
+                const FontMetrics labelSize = titleLabelSize();
+                const int titleBarWidth = q->width();
+                int x = 0;
                 if (m_labelAlignment & Qt::AlignLeft) {
-                    leftMargin = (kDefaultTitleBarContentsMargin + titleLabelLeftOffset);
+                    x = (windowIconRect().right() + kDefaultTitleBarContentsMargin);
+                } else if (m_labelAlignment & Qt::AlignRight) {
+                    x = (titleBarWidth - kDefaultTitleBarContentsMargin - labelSize.width);
+#ifndef Q_OS_MACOS
+                    x -= (titleBarWidth - m_minimizeButton->x());
+#endif // Q_OS_MACOS
+                } else if (m_labelAlignment & Qt::AlignHCenter) {
+                    x = std::round(qreal(titleBarWidth - labelSize.width) / qreal(2));
+                } else {
+                    WARNING << "The alignment for the title label is not set!";
                 }
-                if (m_labelAlignment & Qt::AlignRight) {
-                    rightMargin = (w - m_minimizeButton->x() + kDefaultTitleBarContentsMargin);
-                }
-                const int x = leftMargin;
-                const int y = 0;
-                const int width = (w - leftMargin - rightMargin);
-                const int height = q->height();
-                return {QPoint(x, y), QSize(width, height)};
+                const int y = std::round((qreal(q->height() - labelSize.height) / qreal(2)) + qreal(labelSize.ascent));
+                return {x, y};
             }();
-            painter.drawText(rect, int(m_labelAlignment), text);
+            painter.drawText(pos, text);
+        }
+    }
+    if (m_windowIconVisible) {
+        const QIcon icon = m_window->windowIcon();
+        if (!icon.isNull()) {
+            icon.paint(&painter, windowIconRect());
         }
     }
     painter.restore();
@@ -242,6 +266,10 @@ void StandardTitleBarPrivate::setWindowIconVisible(const bool value)
         return;
     }
     m_windowIconVisible = value;
+    Q_Q(StandardTitleBar);
+    q->update();
+    Q_EMIT q->windowIconVisibleChanged();
+#ifndef Q_OS_MACOS
     // Ideally we should use FramelessWidgetsHelper::get(this) everywhere, but sadly when
     // we call it here, it may be too early that FramelessWidgetsHelper has not attached
     // to the top level widget yet, and thus it will trigger an assert error (the assert
@@ -250,9 +278,7 @@ void StandardTitleBarPrivate::setWindowIconVisible(const bool value)
     // NOTE: In your own code, you should always use FramelessWidgetsHelper::get(this)
     // if possible.
     FramelessWidgetsHelper::get(m_window)->setHitTestVisible(windowIconRect(), windowIconVisible_real());
-    Q_Q(StandardTitleBar);
-    q->update();
-    Q_EMIT q->windowIconVisibleChanged();
+#endif // Q_OS_MACOS
 }
 
 QFont StandardTitleBarPrivate::titleFont() const
@@ -273,17 +299,21 @@ void StandardTitleBarPrivate::setTitleFont(const QFont &value)
 
 bool StandardTitleBarPrivate::mouseEventHandler(QMouseEvent *event)
 {
+#ifdef Q_OS_MACOS
+    Q_UNUSED(event);
+    return false;
+#else // !Q_OS_MACOS
     Q_ASSERT(event);
     if (!event) {
         return false;
     }
     Q_Q(const StandardTitleBar);
     const Qt::MouseButton button = event->button();
-#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+#  if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
     const QPoint scenePos = event->scenePosition().toPoint();
-#else
+#  else // (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
     const QPoint scenePos = event->windowPos().toPoint();
-#endif
+#  endif // (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
     const bool interestArea = isInTitleBarIconArea(scenePos);
     switch (event->type()) {
     case QEvent::MouseButtonRelease:
@@ -336,14 +366,38 @@ bool StandardTitleBarPrivate::mouseEventHandler(QMouseEvent *event)
         break;
     }
     return false;
+#endif // Q_OS_MACOS
 }
 
 QRect StandardTitleBarPrivate::windowIconRect() const
 {
     Q_Q(const StandardTitleBar);
     const QSize size = windowIconSize();
+#ifdef Q_OS_MACOS
+    const auto x = [this, q, &size]() -> int {
+        if (m_labelAlignment & Qt::AlignLeft) {
+            return (kMacOSChromeButtonAreaWidth + kDefaultTitleBarContentsMargin);
+        }
+        const int titleBarWidth = q->width();
+        const int labelWidth = titleLabelSize().width;
+        if (m_labelAlignment & Qt::AlignRight) {
+            // We need two spacer here, one is on the right edge of the title bar,
+            // the other one is between the window icon and the window label.
+            return (titleBarWidth - kDefaultTitleBarContentsMargin
+                    - labelWidth - kDefaultTitleBarContentsMargin - size.width());
+        }
+        if (m_labelAlignment & Qt::AlignHCenter) {
+            const int centeredX = std::round(qreal(titleBarWidth - labelWidth) / qreal(2));
+            return (centeredX - kDefaultTitleBarContentsMargin - size.width());
+        }
+        WARNING << "The alignment for the title label is not set!";
+        return 0;
+    }();
+#else // !Q_OS_MACOS
+    const int x = kDefaultTitleBarContentsMargin;
+#endif // Q_OS_MACOS
     const int y = std::round(qreal(q->height() - size.height()) / qreal(2));
-    return {QPoint(kDefaultTitleBarContentsMargin, y), size};
+    return {QPoint(x, y), size};
 }
 
 bool StandardTitleBarPrivate::windowIconVisible_real() const
@@ -361,9 +415,11 @@ bool StandardTitleBarPrivate::isInTitleBarIconArea(const QPoint &pos) const
 
 void StandardTitleBarPrivate::updateMaximizeButton()
 {
+#ifndef Q_OS_MACOS
     const bool max = m_window->isMaximized();
     m_maximizeButton->setButtonType(max ? SystemButtonType::Restore : SystemButtonType::Maximize);
     m_maximizeButton->setToolTip(max ? tr("Restore") : tr("Maximize"));
+#endif // Q_OS_MACOS
 }
 
 void StandardTitleBarPrivate::updateTitleBarColor()
@@ -374,6 +430,7 @@ void StandardTitleBarPrivate::updateTitleBarColor()
 
 void StandardTitleBarPrivate::updateChromeButtonColor()
 {
+#ifndef Q_OS_MACOS
     const bool active = m_window->isActiveWindow();
     const QColor activeForeground = m_chromePalette->titleBarActiveForegroundColor();
     const QColor inactiveForeground = m_chromePalette->titleBarInactiveForegroundColor();
@@ -398,13 +455,16 @@ void StandardTitleBarPrivate::updateChromeButtonColor()
     m_closeButton->setHoverColor(m_chromePalette->closeButtonHoverColor());
     m_closeButton->setPressColor(m_chromePalette->closeButtonPressColor());
     m_closeButton->setActive(active);
+#endif // Q_OS_MACOS
 }
 
 void StandardTitleBarPrivate::retranslateUi()
 {
+#ifndef Q_OS_MACOS
     m_minimizeButton->setToolTip(tr("Minimize"));
     m_maximizeButton->setToolTip(m_window->isMaximized() ? tr("Restore") : tr("Maximize"));
     m_closeButton->setToolTip(tr("Close"));
+#endif // Q_OS_MACOS
 }
 
 bool StandardTitleBarPrivate::eventFilter(QObject *object, QEvent *event)
@@ -457,6 +517,13 @@ void StandardTitleBarPrivate::initialize()
         Q_UNUSED(title);
         q->update();
     });
+#ifdef Q_OS_MACOS
+    const auto titleBarLayout = new QHBoxLayout(q);
+    titleBarLayout->setSpacing(0);
+    titleBarLayout->setContentsMargins(0, 0, 0, 0);
+    q->setLayout(titleBarLayout);
+    setTitleLabelAlignment(Qt::AlignCenter);
+#else // !Q_OS_MACOS
     m_minimizeButton = new StandardSystemButton(SystemButtonType::Minimize, q);
     connect(m_minimizeButton, &StandardSystemButton::clicked, m_window, &QWidget::showMinimized);
     m_maximizeButton = new StandardSystemButton(SystemButtonType::Maximize, q);
@@ -497,6 +564,7 @@ void StandardTitleBarPrivate::initialize()
     titleBarLayout->addLayout(systemButtonsOuterLayout);
     q->setLayout(titleBarLayout);
     setTitleLabelAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+#endif // Q_OS_MACOS
     retranslateUi();
     updateTitleBarColor();
     updateChromeButtonColor();
@@ -522,6 +590,7 @@ void StandardTitleBar::setTitleLabelAlignment(const Qt::Alignment value)
     d->setTitleLabelAlignment(value);
 }
 
+#ifndef Q_OS_MACOS
 StandardSystemButton *StandardTitleBar::minimizeButton() const
 {
     Q_D(const StandardTitleBar);
@@ -539,6 +608,7 @@ StandardSystemButton *StandardTitleBar::closeButton() const
     Q_D(const StandardTitleBar);
     return d->m_closeButton;
 }
+#endif // Q_OS_MACOS
 
 bool StandardTitleBar::isExtended() const
 {

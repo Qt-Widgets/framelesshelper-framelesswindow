@@ -56,10 +56,10 @@ QT_END_NAMESPACE
 #endif
 
 #if defined(Q_OS_WIN) && !defined(Q_OS_WINDOWS)
-#  define Q_OS_WINDOWS
+#  define Q_OS_WINDOWS // Since 5.14
 #endif
 
-#ifndef Q_DISABLE_COPY_MOVE
+#ifndef Q_DISABLE_COPY_MOVE // Since 5.13
 #  define Q_DISABLE_COPY_MOVE(Class) \
       Q_DISABLE_COPY(Class) \
       Class(Class &&) = delete; \
@@ -68,8 +68,6 @@ QT_END_NAMESPACE
 
 #if (QT_VERSION < QT_VERSION_CHECK(5, 10, 0))
    using QStringView = const QString &;
-#else
-#  include <QtCore/qstringview.h>
 #endif
 
 #if (QT_VERSION < QT_VERSION_CHECK(5, 14, 0))
@@ -77,6 +75,7 @@ QT_END_NAMESPACE
 #  define Q_NAMESPACE_EXPORT(...) Q_NAMESPACE
 #endif
 
+// MOC can't handle C++ attributes before 5.15.
 #if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
 #  define Q_NODISCARD [[nodiscard]]
 #  define Q_MAYBE_UNUSED [[maybe_unused]]
@@ -108,7 +107,7 @@ QT_END_NAMESPACE
 #endif
 
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 4, 0))
-  using namespace Qt::StringLiterals;
+  using namespace Qt::Literals::StringLiterals;
 #endif
 
 #ifndef FRAMELESSHELPER_BYTEARRAY_LITERAL
@@ -129,6 +128,14 @@ QT_END_NAMESPACE
 #  else
 #    define FRAMELESSHELPER_STRING_LITERAL(str) QStringLiteral(str)
 #  endif
+#endif
+
+#ifndef Q_UNREACHABLE_RETURN // Since 6.5
+#  define Q_UNREACHABLE_RETURN(...) \
+     do { \
+         Q_UNREACHABLE(); \
+         return __VA_ARGS__; \
+     } while (false)
 #endif
 
 #ifndef FRAMELESSHELPER_BYTEARRAY_CONSTANT2
@@ -206,6 +213,7 @@ Q_NAMESPACE_EXPORT(FRAMELESSHELPER_CORE_API)
 [[maybe_unused]] inline constexpr const int kDefaultWindowFrameBorderThickness = 1;
 [[maybe_unused]] inline constexpr const int kDefaultTitleBarFontPointSize = 11;
 [[maybe_unused]] inline constexpr const int kDefaultTitleBarContentsMargin = 10;
+[[maybe_unused]] inline constexpr const int kMacOSChromeButtonAreaWidth = 60;
 [[maybe_unused]] inline constexpr const QSize kDefaultWindowIconSize = {16, 16};
 // We have to use "qRound()" here because "std::round()" is not constexpr, yet.
 [[maybe_unused]] inline constexpr const QSize kDefaultSystemButtonSize = {qRound(qreal(kDefaultTitleBarHeight) * 1.5), kDefaultTitleBarHeight};

@@ -27,9 +27,9 @@ import QtQuick.Controls.Basic
 import org.wangwenx190.FramelessHelper
 import Demo
 
-FramelessApplicationWindow {
+FramelessWindow {
     id: window
-    objectName: "applicationWindow"
+    objectName: "window"
     visible: false // Hide the window before we sets up it's correct size and position.
     width: 800
     height: 600
@@ -50,11 +50,13 @@ FramelessApplicationWindow {
         // Let FramelessHelper know what's our homemade title bar, otherwise
         // our window won't be draggable.
         FramelessHelper.titleBarItem = titleBar;
-        // Make our own items visible to the hit test and on Windows, enable
-        // the snap layout feature (available since Windows 11).
-        FramelessHelper.setSystemButton(titleBar.minimizeButton, FramelessHelperConstants.Minimize);
-        FramelessHelper.setSystemButton(titleBar.maximizeButton, FramelessHelperConstants.Maximize);
-        FramelessHelper.setSystemButton(titleBar.closeButton, FramelessHelperConstants.Close);
+        if (!$isMacOSHost) {
+            // Make our own items visible to the hit test and on Windows, enable
+            // the snap layout feature (available since Windows 11).
+            FramelessHelper.setSystemButton(titleBar.minimizeButton, FramelessHelperConstants.Minimize);
+            FramelessHelper.setSystemButton(titleBar.maximizeButton, FramelessHelperConstants.Maximize);
+            FramelessHelper.setSystemButton(titleBar.closeButton, FramelessHelperConstants.Close);
+        }
         if (!Settings.restoreGeometry(window)) {
             FramelessHelper.moveWindowToDesktopCenter();
         }
@@ -103,7 +105,7 @@ FramelessApplicationWindow {
             left: parent.left
             right: parent.right
         }
-        windowIcon: "qrc:///Demo/images/microsoft.svg"
+        windowIcon: "qrc:///images/microsoft.svg"
         windowIconVisible: true
     }
 }

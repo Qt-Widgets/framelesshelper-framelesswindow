@@ -206,8 +206,7 @@ Q_GLOBAL_STATIC(Win32Helper, g_win32Helper)
         if (data.params.isInsideSystemButtons(qtScenePos, &buttonType)) {
             switch (buttonType) {
             case SystemButtonType::Unknown:
-                Q_ASSERT(false);
-                break;
+                Q_UNREACHABLE_RETURN(HTNOWHERE);
             case SystemButtonType::WindowIcon:
                 return HTSYSMENU;
             case SystemButtonType::Help:
@@ -530,11 +529,20 @@ void FramelessHelperWin::addWindow(const SystemParameters &params)
     }
     g_win32Helper()->mutex.unlock();
     DEBUG.noquote() << "The DPI of window" << hwnd2str(windowId) << "is" << data.dpi;
+#if 0
+    params.setWindowFlags(params.getWindowFlags() | Qt::FramelessWindowHint);
+    // We need some delay here, otherwise the window styles will be overwritten by
+    // QPA itself. But don't use QThread::sleep(), it doesn't help in our case.
+    QTimer::singleShot(0, qApp, [windowId](){
+        Utils::maybeFixupQtInternals(windowId);
+    });
+#else
     // Qt maintains a frame margin internally, we need to update it accordingly
     // otherwise we'll get lots of warning messages when we change the window
     // geometry, it will also affect the final window geometry because QPA will
     // always take it into account when setting window size and position.
     Utils::updateInternalWindowFrameMargins(params.getWindowHandle(), true);
+#endif
     // Tell DWM our preferred frame margin.
     Utils::updateWindowFrameMargins(windowId, false);
     // Tell DWM we don't use the window icon/caption/sysmenu, don't draw them.
@@ -562,7 +570,7 @@ void FramelessHelperWin::addWindow(const SystemParameters &params)
                 // The fallback title bar window is only used to activate the Snap Layout feature
                 // introduced in Windows 11, so it's not necessary to create it on systems below Win11.
                 if (!FramelessConfig::instance()->isSet(Option::DisableWindowsSnapLayout)) {
-                    if (!createFallbackTitleBarWindow(windowId, data.params.isWindowFixedSize())) {
+                    if (!createFallbackTitleBarWindow(windowId, params.isWindowFixedSize())) {
                         WARNING << "Failed to create the fallback title bar window.";
                     }
                 }
@@ -617,12 +625,16 @@ bool FramelessHelperWin::nativeEventFilter(const QByteArray &eventType, void *me
     // Work-around a bug caused by typo which only exists in Qt 5.11.1
     const auto msg = *static_cast<MSG **>(message);
 #else
-    const auto msg = static_cast<LPMSG>(message);
+    const auto msg = static_cast<const MSG *>(message);
 #endif
     const HWND hWnd = msg->hwnd;
     if (!hWnd) {
         // Why sometimes the window handle is null? Is it designed to be like this?
         // Anyway, we should skip the entire processing in this case.
+        return false;
+    }
+    // Let's be extra safe.
+    if (IsWindow(hWnd) == FALSE) {
         return false;
     }
     const UINT uMsg = msg->message;

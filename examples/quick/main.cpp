@@ -28,9 +28,10 @@
 
 #include <QtGui/qguiapplication.h>
 #include <QtQml/qqmlapplicationengine.h>
+#include <QtQml/qqmlcontext.h>
 #include <QtQuick/qquickwindow.h>
-#include <framelessquickmodule.h>
-#include <framelessconfig_p.h>
+#include <FramelessHelper/Quick/framelessquickmodule.h>
+#include <FramelessHelper/Core/private/framelessconfig_p.h>
 #include <clocale>
 #include "quicksettings.h"
 #if QMLTC_ENABLED
@@ -39,6 +40,14 @@
 #include "../shared/log.h"
 
 FRAMELESSHELPER_USE_NAMESPACE
+
+static constexpr const bool IS_MACOS_HOST =
+#ifdef Q_OS_MACOS
+        true
+#else // !Q_OS_MACOS
+        false
+#endif // Q_OS_MACOS
+        ;
 
 int main(int argc, char *argv[])
 {
@@ -94,7 +103,15 @@ int main(int argc, char *argv[])
         }());
     }
 
+    // Enable some helpful debugging messages.
+    if (!qEnvironmentVariableIsSet("QML_IMPORT_TRACE")) {
+        qputenv("QML_IMPORT_TRACE", FRAMELESSHELPER_BYTEARRAY_LITERAL("1"));
+    }
+
     const auto engine = std::make_unique<QQmlApplicationEngine>();
+
+    engine->rootContext()->setContextProperty(
+        FRAMELESSHELPER_STRING_LITERAL("$isMacOSHost"), QVariant(IS_MACOS_HOST));
 
 #if (((QT_VERSION < QT_VERSION_CHECK(6, 2, 0)) || defined(QUICK_USE_QMAKE)) && !QMLTC_ENABLED)
     // Don't forget to register our own custom QML types!
@@ -109,7 +126,7 @@ int main(int argc, char *argv[])
 #endif
 
 #if !QMLTC_ENABLED
-    const QUrl mainUrl(FRAMELESSHELPER_STRING_LITERAL("qrc:///Demo/HomePage.qml"));
+    const QUrl mainUrl(FRAMELESSHELPER_STRING_LITERAL("qrc:///qml/HomePage.qml"));
 #endif
 
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 4, 0))

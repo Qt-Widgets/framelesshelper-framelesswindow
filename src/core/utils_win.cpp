@@ -1276,7 +1276,9 @@ void Utils::maybeFixupQtInternals(const WId windowId)
     }
     SetLastError(ERROR_SUCCESS);
     const auto windowStyle = static_cast<DWORD>(GetWindowLongPtrW(hwnd, GWL_STYLE));
-    if (windowStyle != 0) {
+    if (windowStyle == 0) {
+        WARNING << getSystemErrorMessage(kGetWindowLongPtrW);
+    } else {
         // Qt by default adds the "WS_POPUP" flag to all Win32 windows it created and maintained,
         // which is not a good thing (although it won't cause any obvious issues in most cases
         // either), because popup windows have some different behavior with normal overlapped
@@ -1285,8 +1287,7 @@ void Utils::maybeFixupQtInternals(const WId windowId)
         // and this will also break the normal functionalities for our windows, so we do the
         // correction here unconditionally.
         static constexpr const DWORD badWindowStyle = WS_POPUP;
-        static constexpr const DWORD goodWindowStyle =
-            (WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME);
+        static constexpr const DWORD goodWindowStyle = WS_OVERLAPPEDWINDOW;
         if ((windowStyle & badWindowStyle) || !(windowStyle & goodWindowStyle)) {
             SetLastError(ERROR_SUCCESS);
             if (SetWindowLongPtrW(hwnd, GWL_STYLE, ((windowStyle & ~badWindowStyle) | goodWindowStyle)) == 0) {
@@ -1295,8 +1296,6 @@ void Utils::maybeFixupQtInternals(const WId windowId)
                 shouldUpdateFrame = true;
             }
         }
-    } else {
-        WARNING << getSystemErrorMessage(kGetWindowLongPtrW);
     }
     if (shouldUpdateFrame) {
         triggerFrameChange(windowId);
@@ -1682,8 +1681,7 @@ void Utils::setCornerStyleForWindow(const WId windowId, const WindowCornerStyle 
         case WindowCornerStyle::Round:
             return _DWMWCP_ROUND;
         }
-        Q_ASSERT(false);
-        return _DWMWCP_DEFAULT;
+        Q_UNREACHABLE_RETURN(_DWMWCP_DEFAULT);
     }();
     const HRESULT hr = API_CALL_FUNCTION(DwmSetWindowAttribute,
         hwnd, _DWMWA_WINDOW_CORNER_PREFERENCE, &wcp, sizeof(wcp));
@@ -1740,8 +1738,7 @@ bool Utils::setBlurBehindWindowEnabled(const WId windowId, const BlurMode mode, 
                 }
                 return BlurMode::Windows_Aero;
             }
-            Q_ASSERT(false); // Really should NOT go here.
-            return mode;
+            Q_UNREACHABLE_RETURN(BlurMode::Default);
         }();
         if (blurMode == BlurMode::Disable) {
             bool result = true;
@@ -1850,7 +1847,7 @@ bool Utils::setBlurBehindWindowEnabled(const WId windowId, const BlurMode mode, 
                 } else if (blurMode == BlurMode::Windows_Aero) {
                     policy.State = ACCENT_ENABLE_BLURBEHIND;
                 } else {
-                    Q_ASSERT(false); // Really should NOT go here.
+                    Q_UNREACHABLE_RETURN(false);
                 }
                 WINDOWCOMPOSITIONATTRIBDATA wcad;
                 SecureZeroMemory(&wcad, sizeof(wcad));

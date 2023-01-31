@@ -45,6 +45,7 @@
 #include <QtCore/qmutex.h>
 #include <QtCore/qiodevice.h>
 #include <QtCore/qcoreapplication.h>
+#include <QtCore/qloggingcategory.h>
 
 #ifndef COMPILER_STRING
 #  ifdef Q_CC_CLANG // Must be before GNU, because Clang claims to be GNU too.
@@ -114,7 +115,7 @@ QT_END_NAMESPACE
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
 
-Q_LOGGING_CATEGORY(lcCoreGlobal, "wangwenx190.framelesshelper.core.global")
+static Q_LOGGING_CATEGORY(lcCoreGlobal, "wangwenx190.framelesshelper.core.global")
 
 #ifdef FRAMELESSHELPER_CORE_NO_DEBUG_OUTPUT
 #  define INFO QT_NO_QDEBUG_MACRO()
@@ -174,6 +175,7 @@ void initialize()
     // enough, that is, before the construction of any Q(Gui)Application
     // instances. QCoreApplication won't instantiate the platform plugin.
     qputenv(QT_QPA_ENV_VAR, kxcb);
+    XInitThreads();
     gtk_init(nullptr, nullptr);
 #endif
 

@@ -24,7 +24,7 @@
 
 #pragma once
 
-#include "framelesshelpercore_global.h"
+#include <FramelessHelper/Core/framelesshelpercore_global.h>
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
 
@@ -80,5 +80,3 @@ private:
 };
 
 FRAMELESSHELPER_END_NAMESPACE
-
-Q_DECLARE_METATYPE2(FRAMELESSHELPER_PREPEND_NAMESPACE(WindowBorderPainter))

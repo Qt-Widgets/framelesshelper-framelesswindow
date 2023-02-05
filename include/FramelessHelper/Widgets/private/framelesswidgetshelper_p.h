@@ -24,7 +24,7 @@
 
 #pragma once
 
-#include "framelesshelperwidgets_global.h"
+#include <FramelessHelper/Widgets/framelesshelperwidgets_global.h>
 #include <QtCore/qvariant.h>
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
@@ -105,5 +105,3 @@ private:
 };
 
 FRAMELESSHELPER_END_NAMESPACE
-
-Q_DECLARE_METATYPE2(FRAMELESSHELPER_PREPEND_NAMESPACE(FramelessWidgetsHelperPrivate))

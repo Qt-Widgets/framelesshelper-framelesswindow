@@ -24,7 +24,7 @@
 
 #pragma once
 
-#include "framelesshelperquick_global.h"
+#include <FramelessHelper/Quick/framelesshelperquick_global.h>
 #include <FramelessHelper/Core/chromepalette.h>
 #include <QtQml/qqmlparserstatus.h>
 
@@ -49,6 +49,3 @@ protected:
 };
 
 FRAMELESSHELPER_END_NAMESPACE
-
-Q_DECLARE_METATYPE2(FRAMELESSHELPER_PREPEND_NAMESPACE(QuickChromePalette))
-QML_DECLARE_TYPE(FRAMELESSHELPER_PREPEND_NAMESPACE(QuickChromePalette))

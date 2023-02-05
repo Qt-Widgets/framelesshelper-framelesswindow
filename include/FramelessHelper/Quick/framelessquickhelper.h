@@ -24,7 +24,7 @@
 
 #pragma once
 
-#include "framelesshelperquick_global.h"
+#include <FramelessHelper/Quick/framelesshelperquick_global.h>
 #include <QtQuick/qquickitem.h>
 #include <QtQuick/qquickwindow.h>
 
@@ -104,6 +104,4 @@ private:
 
 FRAMELESSHELPER_END_NAMESPACE
 
-Q_DECLARE_METATYPE2(FRAMELESSHELPER_PREPEND_NAMESPACE(FramelessQuickHelper))
-QML_DECLARE_TYPE(FRAMELESSHELPER_PREPEND_NAMESPACE(FramelessQuickHelper))
 QML_DECLARE_TYPEINFO(FRAMELESSHELPER_PREPEND_NAMESPACE(FramelessQuickHelper), QML_HAS_ATTACHED_PROPERTIES)

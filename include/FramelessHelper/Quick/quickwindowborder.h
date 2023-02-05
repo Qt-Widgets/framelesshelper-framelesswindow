@@ -24,7 +24,7 @@
 
 #pragma once
 
-#include "framelesshelperquick_global.h"
+#include <FramelessHelper/Quick/framelesshelperquick_global.h>
 #include <QtQuick/qquickpainteditem.h>
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
@@ -89,6 +89,3 @@ private:
 };
 
 FRAMELESSHELPER_END_NAMESPACE
-
-Q_DECLARE_METATYPE2(FRAMELESSHELPER_PREPEND_NAMESPACE(QuickWindowBorder))
-QML_DECLARE_TYPE(FRAMELESSHELPER_PREPEND_NAMESPACE(QuickWindowBorder))

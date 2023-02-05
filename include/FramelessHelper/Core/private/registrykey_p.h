@@ -24,7 +24,7 @@
 
 #pragma once
 
-#include "framelesshelpercore_global.h"
+#include <FramelessHelper/Core/framelesshelpercore_global.h>
 #include <QtCore/qvariant.h>
 
 #ifndef REGISTRYKEY_FORCE_QSETTINGS
@@ -90,5 +90,3 @@ private:
 };
 
 FRAMELESSHELPER_END_NAMESPACE
-
-Q_DECLARE_METATYPE2(FRAMELESSHELPER_PREPEND_NAMESPACE(RegistryKey))

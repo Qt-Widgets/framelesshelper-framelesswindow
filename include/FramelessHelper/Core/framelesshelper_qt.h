@@ -24,9 +24,11 @@
 
 #pragma once
 
-#include "framelesshelpercore_global.h"
+#include <FramelessHelper/Core/framelesshelpercore_global.h>
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
+
+struct SystemParameters;
 
 class FRAMELESSHELPER_CORE_API FramelessHelperQt : public QObject
 {
@@ -37,7 +39,7 @@ public:
     explicit FramelessHelperQt(QObject *parent = nullptr);
     ~FramelessHelperQt() override;
 
-    static void addWindow(const Global::SystemParameters &params);
+    static void addWindow(const SystemParameters *params);
     static void removeWindow(const WId windowId);
 
 protected:
@@ -45,5 +47,3 @@ protected:
 };
 
 FRAMELESSHELPER_END_NAMESPACE
-
-Q_DECLARE_METATYPE2(FRAMELESSHELPER_PREPEND_NAMESPACE(FramelessHelperQt))

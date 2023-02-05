@@ -29,6 +29,7 @@
 #include "sysapiloader_p.h"
 #include "registrykey_p.h"
 #include "winverhelper_p.h"
+#include "framelesshelpercore_global_p.h"
 #include <QtCore/qmutex.h>
 #include <QtCore/qhash.h>
 #include <QtCore/qloggingcategory.h>
@@ -48,7 +49,9 @@
 #endif // FRAMELESSHELPER_CORE_NO_PRIVATE
 #include <d2d1.h>
 
+#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
 Q_DECLARE_METATYPE(QMargins)
+#endif // (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
 
@@ -185,9 +188,7 @@ FRAMELESSHELPER_STRING_CONSTANT(SetActiveWindow)
 struct Win32UtilsHelperData
 {
     WNDPROC originalWindowProc = nullptr;
-    IsWindowFixedSizeCallback isWindowFixedSize = nullptr;
-    IsInsideTitleBarDraggableAreaCallback isInTitleBarArea = nullptr;
-    GetWindowHandleCallback getWindowHandle = nullptr;
+    SystemParameters params = {};
 };
 
 struct Win32UtilsHelper
@@ -510,8 +511,8 @@ static inline void moveWindowToMonitor(const HWND hwnd, const MONITORINFOEXW &ac
     switch (uMsg) {
     case WM_RBUTTONUP: {
         const QPoint nativeLocalPos = getNativePosFromMouse();
-        const QPoint qtScenePos = Utils::fromNativePixels(data.getWindowHandle(), nativeLocalPos);
-        if (data.isInTitleBarArea(qtScenePos)) {
+        const QPoint qtScenePos = Utils::fromNativePixels(data.params.getWindowHandle(), nativeLocalPos);
+        if (data.params.isInsideTitleBarDraggableArea(qtScenePos)) {
             POINT pos = {nativeLocalPos.x(), nativeLocalPos.y()};
             if (ClientToScreen(hWnd, &pos) == FALSE) {
                 WARNING << Utils::getSystemErrorMessage(kClientToScreen);
@@ -549,7 +550,7 @@ static inline void moveWindowToMonitor(const HWND hwnd, const MONITORINFOEXW &ac
         break;
     }
     if (shouldShowSystemMenu) {
-        Utils::showSystemMenu(windowId, nativeGlobalPos, broughtByKeyboard, data.isWindowFixedSize);
+        Utils::showSystemMenu(windowId, nativeGlobalPos, broughtByKeyboard, &data.params);
         // QPA's internal code will handle system menu events separately, and its
         // behavior is not what we would want to see because it doesn't know our
         // window doesn't have any window frame now, so return early here to avoid
@@ -761,11 +762,11 @@ DwmColorizationArea Utils::getDwmColorizationArea()
 }
 
 void Utils::showSystemMenu(const WId windowId, const QPoint &pos, const bool selectFirstEntry,
-                           const IsWindowFixedSizeCallback &isWindowFixedSize)
+                           FramelessParamsConst params)
 {
     Q_ASSERT(windowId);
-    Q_ASSERT(isWindowFixedSize);
-    if (!windowId || !isWindowFixedSize) {
+    Q_ASSERT(params);
+    if (!windowId || !params) {
         return;
     }
 
@@ -780,7 +781,7 @@ void Utils::showSystemMenu(const WId windowId, const QPoint &pos, const bool sel
 
     // Tweak the menu items according to the current window status.
     const bool maxOrFull = (IsMaximized(hWnd) || isFullScreen(windowId));
-    const bool fixedSize = isWindowFixedSize();
+    const bool fixedSize = params->isWindowFixedSize();
     EnableMenuItem(hMenu, SC_RESTORE, (MF_BYCOMMAND | ((maxOrFull && !fixedSize) ? MFS_ENABLED : MFS_DISABLED)));
     // The first menu item should be selected by default if the menu is brought
     // up by keyboard. I don't know how to pre-select a menu item but it seems
@@ -1381,14 +1382,11 @@ bool Utils::isFrameBorderColorized()
     return isTitleBarColorized();
 }
 
-void Utils::installSystemMenuHook(const WId windowId,
-                                  const IsWindowFixedSizeCallback &isWindowFixedSize,
-                                  const IsInsideTitleBarDraggableAreaCallback &isInTitleBarArea,
-                                  const GetWindowHandleCallback &getWindowHandle)
+void Utils::installSystemMenuHook(const WId windowId, FramelessParamsConst params)
 {
     Q_ASSERT(windowId);
-    Q_ASSERT(isWindowFixedSize);
-    if (!windowId || !isWindowFixedSize) {
+    Q_ASSERT(params);
+    if (!windowId || !params) {
         return;
     }
     const QMutexLocker locker(&g_utilsHelper()->mutex);
@@ -1411,9 +1409,7 @@ void Utils::installSystemMenuHook(const WId windowId,
     //triggerFrameChange(windowId); // Crash
     Win32UtilsHelperData data = {};
     data.originalWindowProc = originalWindowProc;
-    data.isWindowFixedSize = isWindowFixedSize;
-    data.isInTitleBarArea = isInTitleBarArea;
-    data.getWindowHandle = getWindowHandle;
+    data.params = *params;
     g_utilsHelper()->data.insert(windowId, data);
 }
 
@@ -1545,7 +1541,7 @@ void Utils::tryToEnableHighestDpiAwarenessLevel()
         if (currentAwareness == DpiAwareness::PerMonitorVersion2) {
             return;
         }
-        if (SetProcessDpiAwareness2(_PROCESS_PER_MONITOR_DPI_AWARE_V2)) {
+        if (SetProcessDpiAwareness2(_PROCESS_PER_MONITOR_V2_DPI_AWARE)) {
             return;
         }
         if (currentAwareness == DpiAwareness::PerMonitor) {
@@ -1762,7 +1758,8 @@ bool Utils::setBlurBehindWindowEnabled(const WId windowId, const BlurMode mode, 
             } else {
                 ACCENT_POLICY policy;
                 SecureZeroMemory(&policy, sizeof(policy));
-                policy.State = ACCENT_DISABLED;
+                policy.AccentState = ACCENT_DISABLED;
+                policy.AccentFlags = ACCENT_NONE;
                 WINDOWCOMPOSITIONATTRIBDATA wcad;
                 SecureZeroMemory(&wcad, sizeof(wcad));
                 wcad.Attrib = WCA_ACCENT_POLICY;
@@ -1831,9 +1828,8 @@ bool Utils::setBlurBehindWindowEnabled(const WId windowId, const BlurMode mode, 
                 ACCENT_POLICY policy;
                 SecureZeroMemory(&policy, sizeof(policy));
                 if (blurMode == BlurMode::Windows_Acrylic) {
-                    policy.State = ACCENT_ENABLE_ACRYLICBLURBEHIND;
-                    // Magic number, this member must be set to 2, otherwise will have no effect, don't know why.
-                    policy.Flags = 2;
+                    policy.AccentState = ACCENT_ENABLE_ACRYLICBLURBEHIND;
+                    policy.AccentFlags = ACCENT_ENABLE_LUMINOSITY;
                     const auto gradientColor = [&color]() -> QColor {
                         if (color.isValid()) {
                             return color;
@@ -1843,10 +1839,11 @@ bool Utils::setBlurBehindWindowEnabled(const WId windowId, const BlurMode mode, 
                         return clr;
                     }();
                     // This API expects the #AABBGGRR format.
-                    policy.GradientColor = DWORD(qRgba(gradientColor.blue(),
+                    policy.dwGradientColor = DWORD(qRgba(gradientColor.blue(),
                         gradientColor.green(), gradientColor.red(), gradientColor.alpha()));
                 } else if (blurMode == BlurMode::Windows_Aero) {
-                    policy.State = ACCENT_ENABLE_BLURBEHIND;
+                    policy.AccentState = ACCENT_ENABLE_BLURBEHIND;
+                    policy.AccentFlags = ACCENT_NONE;
                 } else {
                     Q_UNREACHABLE_RETURN(false);
                 }
@@ -2195,7 +2192,7 @@ DpiAwareness Utils::getDpiAwarenessForCurrentProcess(bool *highest)
             case _DPI_AWARENESS_PER_MONITOR_AWARE:
                 result = DpiAwareness::PerMonitor;
                 break;
-            case _DPI_AWARENESS_PER_MONITOR_AWARE_V2:
+            case _DPI_AWARENESS_PER_MONITOR_V2_AWARE:
                 result = DpiAwareness::PerMonitorVersion2;
                 break;
             case _DPI_AWARENESS_UNAWARE_GDISCALED:
@@ -2226,7 +2223,7 @@ DpiAwareness Utils::getDpiAwarenessForCurrentProcess(bool *highest)
         case _PROCESS_PER_MONITOR_DPI_AWARE:
             result = DpiAwareness::PerMonitor;
             break;
-        case _PROCESS_PER_MONITOR_DPI_AWARE_V2:
+        case _PROCESS_PER_MONITOR_V2_DPI_AWARE:
             result = DpiAwareness::PerMonitorVersion2;
             break;
         case _PROCESS_DPI_UNAWARE_GDISCALED:

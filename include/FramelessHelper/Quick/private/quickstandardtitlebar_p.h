@@ -26,10 +26,10 @@
 
 #ifndef FRAMELESSHELPER_QUICK_NO_PRIVATE
 
-#include "framelesshelperquick_global.h"
+#include <FramelessHelper/Quick/framelesshelperquick_global.h>
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
-#include "quickchromepalette.h"
-#include "quickstandardsystembutton_p.h"
+#include <FramelessHelper/Quick/quickchromepalette.h>
+#include <FramelessHelper/Quick/private/quickstandardsystembutton_p.h>
 #include <QtQuick/private/qquickrectangle_p.h>
 #include <QtQuickTemplates2/private/qquicklabel_p.h>
 
@@ -146,9 +146,6 @@ private:
 };
 
 FRAMELESSHELPER_END_NAMESPACE
-
-Q_DECLARE_METATYPE(FRAMELESSHELPER_PREPEND_NAMESPACE(QuickStandardTitleBar))
-QML_DECLARE_TYPE(FRAMELESSHELPER_PREPEND_NAMESPACE(QuickStandardTitleBar))
 #endif // (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
 
 #endif // FRAMELESSHELPER_QUICK_NO_PRIVATE

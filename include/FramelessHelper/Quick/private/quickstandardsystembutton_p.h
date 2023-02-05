@@ -26,7 +26,7 @@
 
 #ifndef FRAMELESSHELPER_QUICK_NO_PRIVATE
 
-#include "framelesshelperquick_global.h"
+#include <FramelessHelper/Quick/framelesshelperquick_global.h>
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
 #include <QtQuickTemplates2/private/qquickbutton_p.h>
 
@@ -108,9 +108,6 @@ private:
 };
 
 FRAMELESSHELPER_END_NAMESPACE
-
-Q_DECLARE_METATYPE(FRAMELESSHELPER_PREPEND_NAMESPACE(QuickStandardSystemButton))
-QML_DECLARE_TYPE(FRAMELESSHELPER_PREPEND_NAMESPACE(QuickStandardSystemButton))
 #endif // (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
 
 #endif // FRAMELESSHELPER_QUICK_NO_PRIVATE

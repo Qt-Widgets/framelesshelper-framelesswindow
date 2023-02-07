@@ -26,6 +26,7 @@
 #include "framelessmanager.h"
 #include "framelessmanager_p.h"
 #include "framelessconfig_p.h"
+#include "framelesshelpercore_global_p.h"
 #include <QtCore/qhash.h>
 #include <QtCore/qmutex.h>
 #include <QtCore/qcoreapplication.h>
@@ -591,7 +592,7 @@ Q_GLOBAL_STATIC(MacUtilsData, g_macUtilsData);
         const auto proxy = new NSWindowProxy(qwindow, nswindow);
         g_macUtilsData()->hash.insert(windowId, proxy);
     }
-    static const auto hook = []() -> int {
+    volatile static const auto hook = []() -> int {
         registerUninitializeHook([](){
             const QMutexLocker locker(&g_macUtilsData()->mutex);
             if (g_macUtilsData()->hash.isEmpty()) {
@@ -767,7 +768,7 @@ bool Utils::isBlurBehindWindowSupported()
 
 void Utils::registerThemeChangeNotification()
 {
-    static MacOSThemeObserver observer;
+    volatile static MacOSThemeObserver observer;
     Q_UNUSED(observer);
 }
 

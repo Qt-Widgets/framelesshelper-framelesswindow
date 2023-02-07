@@ -24,6 +24,7 @@
 
 #include "framelesshelpercore_global.h"
 #include "framelesshelpercore_global_p.h"
+#include "versionnumber_p.h"
 #include "utils.h"
 #include <QtCore/qmutex.h>
 #include <QtCore/qiodevice.h>
@@ -56,14 +57,14 @@
 
 #ifndef QT_NO_DEBUG_STREAM
 QT_BEGIN_NAMESPACE
-QDebug operator<<(QDebug d, const FRAMELESSHELPER_PREPEND_NAMESPACE(Global)::VersionNumber &ver)
+QDebug operator<<(QDebug d, const FRAMELESSHELPER_PREPEND_NAMESPACE(VersionNumber) &ver)
 {
     const QDebugStateSaver saver(d);
     d.nospace().noquote() << "VersionNumber("
-                          << ver.major << ", "
-                          << ver.minor << ", "
-                          << ver.patch << ", "
-                          << ver.tweak << ')';
+                          << ver.Major << ", "
+                          << ver.Minor << ", "
+                          << ver.Patch << ", "
+                          << ver.Tweak << ')';
     return d;
 }
 
@@ -72,7 +73,7 @@ QDebug operator<<(QDebug d, const FRAMELESSHELPER_PREPEND_NAMESPACE(Global)::Ver
     const QDebugStateSaver saver(d);
     int major = 0, minor = 0, patch = 0, tweak = 0;
     FRAMELESSHELPER_EXTRACT_VERSION(ver.version, major, minor, patch, tweak)
-    const auto ver_num = FRAMELESSHELPER_PREPEND_NAMESPACE(Global)::VersionNumber{major, minor, patch, tweak};
+    const auto ver_num = FRAMELESSHELPER_PREPEND_NAMESPACE(VersionNumber){major, minor, patch, tweak};
     d.nospace().noquote() << "VersionInfo("
                           << "version number: " << ver_num << ", "
                           << "version string: " << ver.version_str << ", "
@@ -178,8 +179,9 @@ void initialize()
     // enough, that is, before the construction of any Q(Gui)Application
     // instances. QCoreApplication won't instantiate the platform plugin.
     qputenv(QT_QPA_ENV_VAR, kxcb);
-    XInitThreads(); // Users report that GTK is crashing without this.
-    gtk_init(nullptr, nullptr); // Users report that GTK functionalities won't work without this.
+    // Fedora and Arch users report segfault when calling XInitThreads() and gtk_init().
+    //XInitThreads(); // Users report that GTK is crashing without this.
+    //gtk_init(nullptr, nullptr); // Users report that GTK functionalities won't work without this.
 #endif
 
 #if (defined(Q_OS_MACOS) && (QT_VERSION < QT_VERSION_CHECK(6, 0, 0)))

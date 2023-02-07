@@ -70,18 +70,26 @@ QT_END_NAMESPACE
 
 #if (QT_VERSION < QT_VERSION_CHECK(5, 14, 0))
 #  define qExchange(a, b) std::exchange(a, b)
+#endif
+
+#ifndef Q_NAMESPACE_EXPORT // Since 5.14
 #  define Q_NAMESPACE_EXPORT(...) Q_NAMESPACE
+#endif
+
+// QColor can't be constexpr before 5.14
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 14, 0))
+#  define Q_COLOR_CONSTEXPR constexpr
+#else
+#  define Q_COLOR_CONSTEXPR
 #endif
 
 // MOC can't handle C++ attributes before 5.15.
 #if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
 #  define Q_NODISCARD [[nodiscard]]
 #  define Q_MAYBE_UNUSED [[maybe_unused]]
-#  define Q_CONSTEXPR2 constexpr // There's a Q_CONSTEXPR from Qt, which behaves differently.
 #else
 #  define Q_NODISCARD
 #  define Q_MAYBE_UNUSED
-#  define Q_CONSTEXPR2
 #endif
 
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
@@ -94,6 +102,10 @@ QT_END_NAMESPACE
 
 #ifndef QUtf8String
 #  define QUtf8String(str) QString::fromUtf8(str)
+#endif
+
+#ifndef Q_GADGET_EXPORT // Since 6.3
+#  define Q_GADGET_EXPORT(...) Q_GADGET
 #endif
 
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 4, 0))
@@ -214,19 +226,19 @@ Q_NAMESPACE_EXPORT(FRAMELESSHELPER_CORE_API)
 #  define kDefaultTransparentColor QColorConstants::Transparent
 #  define kDefaultDarkGrayColor QColorConstants::DarkGray
 #else // (QT_VERSION >= QT_VERSION_CHECK(5, 14, 0))
-   [[maybe_unused]] inline Q_CONSTEXPR2 const QColor kDefaultBlackColor = {0, 0, 0}; // #000000
-   [[maybe_unused]] inline Q_CONSTEXPR2 const QColor kDefaultWhiteColor = {255, 255, 255}; // #FFFFFF
-   [[maybe_unused]] inline Q_CONSTEXPR2 const QColor kDefaultTransparentColor = {0, 0, 0, 0};
-   [[maybe_unused]] inline Q_CONSTEXPR2 const QColor kDefaultDarkGrayColor = {169, 169, 169}; // #A9A9A9
+   [[maybe_unused]] inline Q_COLOR_CONSTEXPR const QColor kDefaultBlackColor = {0, 0, 0}; // #000000
+   [[maybe_unused]] inline Q_COLOR_CONSTEXPR const QColor kDefaultWhiteColor = {255, 255, 255}; // #FFFFFF
+   [[maybe_unused]] inline Q_COLOR_CONSTEXPR const QColor kDefaultTransparentColor = {0, 0, 0, 0};
+   [[maybe_unused]] inline Q_COLOR_CONSTEXPR const QColor kDefaultDarkGrayColor = {169, 169, 169}; // #A9A9A9
 #endif // (QT_VERSION >= QT_VERSION_CHECK(5, 14, 0))
 
-[[maybe_unused]] inline Q_CONSTEXPR2 const QColor kDefaultSystemLightColor = {240, 240, 240}; // #F0F0F0
-[[maybe_unused]] inline Q_CONSTEXPR2 const QColor kDefaultSystemDarkColor = {32, 32, 32}; // #202020
-[[maybe_unused]] inline Q_CONSTEXPR2 const QColor kDefaultFrameBorderActiveColor = {77, 77, 77}; // #4D4D4D
-[[maybe_unused]] inline Q_CONSTEXPR2 const QColor kDefaultFrameBorderInactiveColorDark = {87, 89, 89}; // #575959
-[[maybe_unused]] inline Q_CONSTEXPR2 const QColor kDefaultFrameBorderInactiveColorLight = {166, 166, 166}; // #A6A6A6
-[[maybe_unused]] inline Q_CONSTEXPR2 const QColor kDefaultSystemButtonBackgroundColor = {204, 204, 204}; // #CCCCCC
-[[maybe_unused]] inline Q_CONSTEXPR2 const QColor kDefaultSystemCloseButtonBackgroundColor = {232, 17, 35}; // #E81123
+[[maybe_unused]] inline Q_COLOR_CONSTEXPR const QColor kDefaultSystemLightColor = {240, 240, 240}; // #F0F0F0
+[[maybe_unused]] inline Q_COLOR_CONSTEXPR const QColor kDefaultSystemDarkColor = {32, 32, 32}; // #202020
+[[maybe_unused]] inline Q_COLOR_CONSTEXPR const QColor kDefaultFrameBorderActiveColor = {77, 77, 77}; // #4D4D4D
+[[maybe_unused]] inline Q_COLOR_CONSTEXPR const QColor kDefaultFrameBorderInactiveColorDark = {87, 89, 89}; // #575959
+[[maybe_unused]] inline Q_COLOR_CONSTEXPR const QColor kDefaultFrameBorderInactiveColorLight = {166, 166, 166}; // #A6A6A6
+[[maybe_unused]] inline Q_COLOR_CONSTEXPR const QColor kDefaultSystemButtonBackgroundColor = {204, 204, 204}; // #CCCCCC
+[[maybe_unused]] inline Q_COLOR_CONSTEXPR const QColor kDefaultSystemCloseButtonBackgroundColor = {232, 17, 35}; // #E81123
 
 [[maybe_unused]] inline const QByteArray kDontOverrideCursorVar
     = FRAMELESSHELPER_BYTEARRAY_LITERAL("FRAMELESSHELPER_DONT_OVERRIDE_CURSOR");
@@ -398,65 +410,6 @@ enum class WindowCornerStyle
 };
 Q_ENUM_NS(WindowCornerStyle)
 
-struct VersionNumber
-{
-    int major = 0;
-    int minor = 0;
-    int patch = 0;
-    int tweak = 0;
-
-    [[nodiscard]] friend constexpr bool operator==(const VersionNumber &lhs, const VersionNumber &rhs) noexcept
-    {
-        return ((lhs.major == rhs.major) && (lhs.minor == rhs.minor) && (lhs.patch == rhs.patch) && (lhs.tweak == rhs.tweak));
-    }
-
-    [[nodiscard]] friend constexpr bool operator!=(const VersionNumber &lhs, const VersionNumber &rhs) noexcept
-    {
-        return !operator==(lhs, rhs);
-    }
-
-    [[nodiscard]] friend constexpr bool operator>(const VersionNumber &lhs, const VersionNumber &rhs) noexcept
-    {
-        if (operator==(lhs, rhs)) {
-            return false;
-        }
-        if (lhs.major > rhs.major) {
-            return true;
-        }
-        if (lhs.major < rhs.major) {
-            return false;
-        }
-        if (lhs.minor > rhs.minor) {
-            return true;
-        }
-        if (lhs.minor < rhs.minor) {
-            return false;
-        }
-        if (lhs.patch > rhs.patch) {
-            return true;
-        }
-        if (lhs.patch < rhs.patch) {
-            return false;
-        }
-        return (lhs.tweak > rhs.tweak);
-    }
-
-    [[nodiscard]] friend constexpr bool operator<(const VersionNumber &lhs, const VersionNumber &rhs) noexcept
-    {
-        return (operator!=(lhs, rhs) && !operator>(lhs, rhs));
-    }
-
-    [[nodiscard]] friend constexpr bool operator>=(const VersionNumber &lhs, const VersionNumber &rhs) noexcept
-    {
-        return (operator>(lhs, rhs) || operator==(lhs, rhs));
-    }
-
-    [[nodiscard]] friend constexpr bool operator<=(const VersionNumber &lhs, const VersionNumber &rhs) noexcept
-    {
-        return (operator<(lhs, rhs) || operator==(lhs, rhs));
-    }
-};
-
 struct VersionInfo
 {
     int version = 0;
@@ -474,39 +427,6 @@ struct Dpi
     quint32 y = 0;
 };
 
-#ifdef Q_OS_WINDOWS
-[[maybe_unused]] inline constexpr const VersionNumber WindowsVersions[] =
-{
-    { 5, 0,  2195}, // Windows 2000
-    { 5, 1,  2600}, // Windows XP
-    { 5, 2,  3790}, // Windows XP x64 Edition or Windows Server 2003
-    { 6, 0,  6000}, // Windows Vista
-    { 6, 0,  6001}, // Windows Vista with Service Pack 1 or Windows Server 2008
-    { 6, 0,  6002}, // Windows Vista with Service Pack 2
-    { 6, 1,  7600}, // Windows 7 or Windows Server 2008 R2
-    { 6, 1,  7601}, // Windows 7 with Service Pack 1 or Windows Server 2008 R2 with Service Pack 1
-    { 6, 2,  9200}, // Windows 8 or Windows Server 2012
-    { 6, 3,  9200}, // Windows 8.1 or Windows Server 2012 R2
-    { 6, 3,  9600}, // Windows 8.1 with Update 1
-    {10, 0, 10240}, // Windows 10 Version 1507 (TH1)
-    {10, 0, 10586}, // Windows 10 Version 1511 (November Update) (TH2)
-    {10, 0, 14393}, // Windows 10 Version 1607 (Anniversary Update) (RS1) or Windows Server 2016
-    {10, 0, 15063}, // Windows 10 Version 1703 (Creators Update) (RS2)
-    {10, 0, 16299}, // Windows 10 Version 1709 (Fall Creators Update) (RS3)
-    {10, 0, 17134}, // Windows 10 Version 1803 (April 2018 Update) (RS4)
-    {10, 0, 17763}, // Windows 10 Version 1809 (October 2018 Update) (RS5) or Windows Server 2019
-    {10, 0, 18362}, // Windows 10 Version 1903 (May 2019 Update) (19H1)
-    {10, 0, 18363}, // Windows 10 Version 1909 (November 2019 Update) (19H2)
-    {10, 0, 19041}, // Windows 10 Version 2004 (May 2020 Update) (20H1)
-    {10, 0, 19042}, // Windows 10 Version 20H2 (October 2020 Update) (20H2)
-    {10, 0, 19043}, // Windows 10 Version 21H1 (May 2021 Update) (21H1)
-    {10, 0, 19044}, // Windows 10 Version 21H2 (November 2021 Update) (21H2)
-    {10, 0, 19045}, // Windows 10 Version 22H2 (October 2022 Update) (22H2)
-    {10, 0, 22000}, // Windows 11 Version 21H2 (21H2)
-    {10, 0, 22621}  // Windows 11 Version 22H2 (October 2022 Update) (22H2)
-};
-#endif // Q_OS_WINDOWS
-
 } // namespace Global
 
 namespace FramelessHelper::Core
@@ -522,7 +442,6 @@ FRAMELESSHELPER_END_NAMESPACE
 
 #ifndef QT_NO_DEBUG_STREAM
 QT_BEGIN_NAMESPACE
-FRAMELESSHELPER_CORE_API QDebug operator<<(QDebug, const FRAMELESSHELPER_PREPEND_NAMESPACE(Global)::VersionNumber &);
 FRAMELESSHELPER_CORE_API QDebug operator<<(QDebug, const FRAMELESSHELPER_PREPEND_NAMESPACE(Global)::VersionInfo &);
 FRAMELESSHELPER_CORE_API QDebug operator<<(QDebug, const FRAMELESSHELPER_PREPEND_NAMESPACE(Global)::Dpi &);
 QT_END_NAMESPACE

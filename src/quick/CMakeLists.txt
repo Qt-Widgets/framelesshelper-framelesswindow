@@ -82,12 +82,19 @@ set(SOURCES
 )
 
 if(WIN32 AND NOT FRAMELESSHELPER_BUILD_STATIC)
-    configure_file(
-        ${CMAKE_CURRENT_SOURCE_DIR}/../core/framelesshelper.rc.in
-        ${CMAKE_CURRENT_BINARY_DIR}/framelesshelperquick.rc @ONLY)
-    list(APPEND SOURCES
-        ${CMAKE_CURRENT_BINARY_DIR}/framelesshelperquick.rc
+    set(__rc_path "${CMAKE_CURRENT_BINARY_DIR}/framelesshelperquick.rc")
+    generate_win32_rc_file(
+        PATH "${__rc_path}"
+        VERSION "${PROJECT_VERSION}"
+        COMPANY "wangwenx190"
+        DESCRIPTION "${PROJECT_NAME} ${SUB_MOD_NAME} Module"
+        COPYRIGHT "MIT License"
+        ORIGINAL_FILENAME "${PROJECT_NAME}${SUB_MOD_NAME}.dll"
+        PRODUCT "${PROJECT_NAME}"
+        COMMENTS "Built from commit ${PROJECT_VERSION_COMMIT} on ${PROJECT_COMPILE_DATETIME} (UTC)."
+        LIBRARY
     )
+    list(APPEND SOURCES "${__rc_path}")
 endif()
 
 set(ALL_SOURCES ${PUBLIC_HEADERS} ${PRIVATE_HEADERS} ${SOURCES})
@@ -209,7 +216,22 @@ target_include_directories(${SUB_PROJ_NAME} PUBLIC
 setup_qt_stuff(TARGETS ${SUB_PROJ_NAME} ALLOW_KEYWORD)
 set(__extra_flags)
 if(NOT FRAMELESSHELPER_NO_PERMISSIVE_CHECKS)
-    set(__extra_flags PERMISSIVE)
+    list(APPEND __extra_flags PERMISSIVE)
+endif()
+if(FRAMELESSHELPER_ENABLE_SPECTRE)
+    list(APPEND __extra_flags SPECTRE)
+endif()
+if(FRAMELESSHELPER_ENABLE_EHCONTGUARD)
+    list(APPEND __extra_flags EHCONTGUARD)
+endif()
+if(FRAMELESSHELPER_ENABLE_INTELCET)
+    list(APPEND __extra_flags INTELCET)
+endif()
+if(FRAMELESSHELPER_ENABLE_INTELJCC)
+    list(APPEND __extra_flags INTELJCC)
+endif()
+if(FRAMELESSHELPER_ENABLE_CFGUARD)
+    list(APPEND __extra_flags CFGUARD)
 endif()
 setup_compile_params(TARGETS ${SUB_PROJ_NAME} ${__extra_flags})
 if(NOT FRAMELESSHELPER_NO_INSTALL)

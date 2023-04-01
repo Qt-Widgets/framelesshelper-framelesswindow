@@ -71,9 +71,9 @@ QDebug operator<<(QDebug d, const FRAMELESSHELPER_PREPEND_NAMESPACE(VersionNumbe
 QDebug operator<<(QDebug d, const FRAMELESSHELPER_PREPEND_NAMESPACE(Global)::VersionInfo &ver)
 {
     const QDebugStateSaver saver(d);
-    int major = 0, minor = 0, patch = 0, tweak = 0;
-    FRAMELESSHELPER_EXTRACT_VERSION(ver.version, major, minor, patch, tweak)
-    const auto ver_num = FRAMELESSHELPER_PREPEND_NAMESPACE(VersionNumber){major, minor, patch, tweak};
+    int major = 0, minor = 0, patch = 0;
+    FRAMELESSHELPER_EXTRACT_VERSION(ver.version, major, minor, patch)
+    const auto ver_num = FRAMELESSHELPER_PREPEND_NAMESPACE(VersionNumber){major, minor, patch};
     d.nospace().noquote() << "VersionInfo("
                           << "version number: " << ver_num << ", "
                           << "version string: " << ver.version_str << ", "
@@ -96,6 +96,17 @@ QDebug operator<<(QDebug d, const FRAMELESSHELPER_PREPEND_NAMESPACE(Global)::Dpi
 }
 QT_END_NAMESPACE
 #endif // QT_NO_DEBUG_STREAM
+
+#ifndef FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
+// The "Q_INIT_RESOURCE()" macro can't be used within a namespace,
+// so we wrap it into a separate function outside of the namespace and
+// then call it instead inside the namespace, that's also the recommended
+// workaround provided by Qt's official documentation.
+void framelesshelpercore_initResource()
+{
+    Q_INIT_RESOURCE(framelesshelpercore);
+}
+#endif // FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
 

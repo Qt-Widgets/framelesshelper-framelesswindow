@@ -22,6 +22,8 @@
   SOFTWARE.
 ]]
 
+include(GNUInstallDirs)
+
 if(UNIX AND NOT APPLE)
     if(FRAMELESSHELPER_NO_PRIVATE)
         # Qt X11Extras is only available in Qt5.
@@ -136,7 +138,7 @@ elseif(UNIX)
 endif()
 
 if(WIN32 AND NOT FRAMELESSHELPER_BUILD_STATIC)
-    set(__rc_path "${CMAKE_CURRENT_BINARY_DIR}/framelesshelpercore.rc")
+    set(__rc_path "${CMAKE_CURRENT_BINARY_DIR}/${SUB_PROJ_NAME}.rc")
     generate_win32_rc_file(
         PATH "${__rc_path}"
         VERSION "${PROJECT_VERSION}"
@@ -154,12 +156,56 @@ endif()
 set(ALL_SOURCES ${PUBLIC_HEADERS} ${PRIVATE_HEADERS} ${SOURCES})
 
 if(FRAMELESSHELPER_BUILD_STATIC)
-    add_library(${SUB_PROJ_NAME} STATIC ${ALL_SOURCES})
+    set(SUB_MOD_LIB_TYPE "STATIC")
 else()
-    add_library(${SUB_PROJ_NAME} SHARED ${ALL_SOURCES})
+    set(SUB_MOD_LIB_TYPE "SHARED")
 endif()
+add_library(${SUB_PROJ_NAME} ${SUB_MOD_LIB_TYPE} ${ALL_SOURCES})
 add_library(${PROJECT_NAME}::${SUB_PROJ_NAME} ALIAS ${SUB_PROJ_NAME})
 add_library(${PROJECT_NAME}::${SUB_MOD_NAME} ALIAS ${SUB_PROJ_NAME})
+
+set_target_properties(${SUB_PROJ_NAME} PROPERTIES
+    VERSION "${PROJECT_VERSION}"
+    SOVERSION "${PROJECT_VERSION_MAJOR}"
+)
+
+set(SUB_MOD_TARGETS ${SUB_PROJ_NAME})
+
+if(WIN32 AND NOT FRAMELESSHELPER_BUILD_STATIC)
+    set(SUB_MOD_LIB_DIR "${CMAKE_INSTALL_BINDIR}")
+else()
+    set(SUB_MOD_LIB_DIR "${CMAKE_INSTALL_LIBDIR}")
+endif()
+
+set(__prefix "")
+if(NOT WIN32)
+    set(__prefix "lib")
+endif()
+set(__suffix "")
+if(FRAMELESSHELPER_BUILD_STATIC)
+    if(MSVC)
+        set(__suffix "lib")
+    else()
+        set(__suffix "a")
+    endif()
+else()
+    if(WIN32)
+        set(__suffix "dll")
+    elseif(APPLE)
+        set(__suffix "dylib")
+    elseif(UNIX)
+        set(__suffix "so")
+    endif()
+endif()
+set(SUB_MOD_FILE_PREFIX "${__prefix}")
+set(SUB_MOD_FILE_SUFFIX "${__suffix}")
+set(SUB_MOD_FILE_BASENAME "${SUB_MOD_FILE_PREFIX}${SUB_PROJ_NAME}")
+if("x${CMAKE_BUILD_TYPE}" STREQUAL "xDebug")
+    string(APPEND SUB_MOD_FILE_BASENAME "${CMAKE_DEBUG_POSTFIX}")
+endif()
+set(SUB_MOD_FILE_NAME "${SUB_MOD_FILE_BASENAME}.${SUB_MOD_FILE_SUFFIX}")
+unset(__suffix)
+unset(__prefix)
 
 if(NOT FRAMELESSHELPER_NO_BUNDLE_RESOURCE)
     if(QT_VERSION VERSION_GREATER_EQUAL "6.2")
@@ -169,7 +215,18 @@ if(NOT FRAMELESSHELPER_NO_BUNDLE_RESOURCE)
             FILES
                 "resources/fonts/iconfont.ttf"
                 "resources/images/noise.png"
+            OUTPUT_TARGETS __qrc_targets
         )
+        if(__qrc_targets)
+            foreach(__target ${__qrc_targets})
+                list(APPEND SUB_MOD_TARGETS ${__target})
+                if(FRAMELESSHELPER_BUILD_STATIC)
+                    target_sources(${SUB_PROJ_NAME} PRIVATE
+                        $<TARGET_OBJECTS:${__target}>
+                    )
+                endif()
+            endforeach()
+        endif()
     else()
         target_sources(${SUB_PROJ_NAME} PRIVATE
             framelesshelpercore.qrc
@@ -178,9 +235,10 @@ if(NOT FRAMELESSHELPER_NO_BUNDLE_RESOURCE)
 endif()
 
 if(FRAMELESSHELPER_BUILD_STATIC)
-    target_compile_definitions(${SUB_PROJ_NAME} PUBLIC
-        FRAMELESSHELPER_CORE_STATIC
-    )
+    set(__def FRAMELESSHELPER_CORE_STATIC)
+    target_compile_definitions(${SUB_PROJ_NAME} PUBLIC ${__def})
+    list(APPEND SUB_MOD_DEFS ${__def})
+    unset(__def)
 endif()
 
 if(FRAMELESSHELPER_NO_DEBUG_OUTPUT)
@@ -190,15 +248,27 @@ if(FRAMELESSHELPER_NO_DEBUG_OUTPUT)
 endif()
 
 if(FRAMELESSHELPER_NO_BUNDLE_RESOURCE)
-    target_compile_definitions(${SUB_PROJ_NAME} PRIVATE
-        FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
-    )
+    set(__def FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE)
+    target_compile_definitions(${SUB_PROJ_NAME} PUBLIC ${__def})
+    list(APPEND SUB_MOD_DEFS ${__def})
+    unset(__def)
 endif()
 
 if(FRAMELESSHELPER_NO_PRIVATE)
-    target_compile_definitions(${SUB_PROJ_NAME} PRIVATE
-        FRAMELESSHELPER_CORE_NO_PRIVATE
-    )
+    set(__def FRAMELESSHELPER_CORE_NO_PRIVATE)
+    target_compile_definitions(${SUB_PROJ_NAME} PUBLIC ${__def})
+    list(APPEND SUB_MOD_DEFS ${__def})
+    unset(__def)
+endif()
+
+if(DEFINED FRAMELESSHELPER_NAMESPACE)
+    if("x${FRAMELESSHELPER_NAMESPACE}" STREQUAL "x")
+        message(FATAL_ERROR "FRAMELESSHELPER_NAMESPACE can't be empty!")
+    endif()
+    set(__def FRAMELESSHELPER_NAMESPACE=${FRAMELESSHELPER_NAMESPACE})
+    target_compile_definitions(${SUB_PROJ_NAME} PUBLIC ${__def})
+    list(APPEND SUB_MOD_DEFS ${__def})
+    unset(__def)
 endif()
 
 target_compile_definitions(${SUB_PROJ_NAME} PRIVATE
@@ -278,13 +348,29 @@ if(FRAMELESSHELPER_ENABLE_CFGUARD)
 endif()
 setup_compile_params(TARGETS ${SUB_PROJ_NAME} ${__extra_flags})
 if(NOT FRAMELESSHELPER_NO_INSTALL)
-    setup_package_export(
-        TARGET ${SUB_PROJ_NAME}
-        PACKAGE_NAME ${PROJECT_NAME}
-        NAMESPACE ${PROJECT_NAME}
-        INCLUDE_PATH ${SUB_PROJ_PATH}
-        PUBLIC_HEADERS ${PUBLIC_HEADERS}
-        ALIAS_HEADERS ${PUBLIC_HEADERS_ALIAS}
-        PRIVATE_HEADERS ${PRIVATE_HEADERS}
+    set(__cmake_dir "${CMAKE_CURRENT_BINARY_DIR}/cmake")
+    set(__config_file "${__cmake_dir}/${SUB_PROJ_NAME}Config.cmake")
+    configure_file(../../FramelessHelperModuleConfig.cmake.in ${__config_file} @ONLY)
+    set(__targets_file "${__cmake_dir}/${SUB_PROJ_NAME}Targets.cmake")
+    configure_file(../../FramelessHelperModuleTargets.cmake.in ${__targets_file} @ONLY)
+    install(
+        FILES "${__config_file}" "${__targets_file}"
+        DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${SUB_PROJ_NAME}"
+    )
+    set(__inc_dir "${CMAKE_INSTALL_INCLUDEDIR}/${SUB_PROJ_PATH}")
+    install(
+        FILES ${PUBLIC_HEADERS} ${PUBLIC_HEADERS_ALIAS}
+        DESTINATION "${__inc_dir}"
+    )
+    install(
+        FILES ${PRIVATE_HEADERS}
+        DESTINATION "${__inc_dir}/private"
+    )
+    install(
+        TARGETS  ${SUB_MOD_TARGETS}
+        RUNTIME  DESTINATION "${CMAKE_INSTALL_BINDIR}"
+        LIBRARY  DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        ARCHIVE  DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        INCLUDES DESTINATION "${__inc_dir}"
     )
 endif()

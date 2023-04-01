@@ -25,7 +25,7 @@
 cmake_minimum_required(VERSION 3.20)
 
 project(FramelessHelper
-    VERSION 2.3.5.0
+    VERSION "2.3.5"
     DESCRIPTION "Cross-platform window customization framework for Qt Widgets and Qt Quick."
     HOMEPAGE_URL "https://github.com/wangwenx190/framelesshelper/"
 )
@@ -44,13 +44,14 @@ option(FRAMELESSHELPER_NO_PERMISSIVE_CHECKS "MSVC only: disable the additional p
 option(FRAMELESSHELPER_NO_INSTALL "Don't install any files." OFF)
 option(FRAMELESSHELPER_NO_SUMMARY "Don't show CMake configure summary." OFF)
 option(FRAMELESSHELPER_ENABLE_SPECTRE "Mitigate Spectre security vulnerabilities." OFF)
-option(FRAMELESSHELPER_ENABLE_EHCONTGUARD "Enable EH Continuation (EHCONT) Metadata." OFF)
+option(FRAMELESSHELPER_ENABLE_EHCONTGUARD "MSVC only: Enable EH Continuation (EHCONT) Metadata." OFF)
 option(FRAMELESSHELPER_ENABLE_INTELCET "Enable Intel CET." ON)
 option(FRAMELESSHELPER_ENABLE_INTELJCC "Enable Intel JCC." ON)
 option(FRAMELESSHELPER_ENABLE_CFGUARD "Enable Control Flow Guard (CFG)." ON)
+option(FRAMELESSHELPER_EXAMPLES_STANDALONE "Build the demo projects as standalone CMake projects." OFF)
 
 if(FRAMELESSHELPER_NO_BUNDLE_RESOURCE)
-    message(WARNING "Nothing will be embeded into FramelessHelper, the chrome buttons will have no icon.")
+    message(WARNING "Nothing will be embeded into the FramelessHelper library, the chrome buttons will have no icon.")
 endif()
 
 if(FRAMELESSHELPER_ENABLE_VCLTL AND NOT MSVC)
@@ -80,6 +81,16 @@ get_commit_hash(RESULT PROJECT_VERSION_COMMIT)
 set(PROJECT_COMPILE_DATETIME "UNKNOWN")
 string(TIMESTAMP PROJECT_COMPILE_DATETIME UTC)
 
+if(MINGW AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    message(WARNING "Your current toolchain is not officially supported by FramelessHelper.\n"
+                    "Only LLVM-MinGW (https://github.com/mstorsjo/llvm-mingw) has partial support.")
+    set(FRAMELESSHELPER_ENABLE_SPECTRE OFF)
+    set(FRAMELESSHELPER_ENABLE_EHCONTGUARD OFF)
+    set(FRAMELESSHELPER_ENABLE_INTELCET OFF)
+    set(FRAMELESSHELPER_ENABLE_INTELJCC OFF)
+    set(FRAMELESSHELPER_ENABLE_CFGUARD OFF)
+endif()
+
 if(MSVC)
     if(FRAMELESSHELPER_ENABLE_VCLTL)
         include(cmake/VC-LTL.cmake)
@@ -98,8 +109,8 @@ if(FRAMELESSHELPER_NO_INSTALL)
     list(APPEND __extra_flags NO_INSTALL)
 endif()
 prepare_package_export(
-    PACKAGE_NAME ${PROJECT_NAME}
-    PACKAGE_VERSION ${PROJECT_VERSION}
+    PACKAGE_NAME "${PROJECT_NAME}"
+    PACKAGE_VERSION "${PROJECT_VERSION}"
     ${__extra_flags}
 )
 unset(__extra_flags)
@@ -127,9 +138,13 @@ if(FRAMELESSHELPER_BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
 
+if(NOT FRAMELESSHELPER_NO_INSTALL)
+    install(FILES "msbuild/FramelessHelper.props" DESTINATION ".")
+endif()
+
 if(NOT FRAMELESSHELPER_NO_SUMMARY)
-    message("--------------------------- Compiler ----------------------------")
-    message("CMake version: ${CMAKE_VERSION}")
+    message("--------------------------- Toolchain ----------------------------")
+    message("CMake version: ${CMAKE_VERSION} (${CMAKE_COMMAND})")
     message("Host system: ${CMAKE_HOST_SYSTEM}")
     message("Host processor: ${CMAKE_HOST_SYSTEM_PROCESSOR}")
     #message("C compiler: ${CMAKE_C_COMPILER_ID} (${CMAKE_C_COMPILER})") # Currently we are not using any C compilers.
@@ -138,8 +153,12 @@ if(NOT FRAMELESSHELPER_NO_SUMMARY)
     message("C++ compiler version: ${CMAKE_CXX_COMPILER_VERSION}")
     message("Linker: ${CMAKE_LINKER}")
     message("Make program: ${CMAKE_MAKE_PROGRAM}")
+    message("Generator: ${CMAKE_GENERATOR}")
     message("Build type: ${CMAKE_BUILD_TYPE}")
+    message("Configuration types: ${CMAKE_CONFIGURATION_TYPES}")
     message("Install prefix: ${CMAKE_INSTALL_PREFIX}")
+    message("Prefix paths: ${CMAKE_PREFIX_PATH}")
+    message("Toolchain file: ${CMAKE_TOOLCHAIN_FILE}")
     message("------------------------------ Qt -------------------------------")
     set(__qt_inst_dir)
     if(DEFINED Qt6_DIR)
@@ -148,17 +167,18 @@ if(NOT FRAMELESSHELPER_NO_SUMMARY)
         set(__qt_inst_dir "${Qt5_DIR}")
     endif()
     # /whatever/Qt/6.4.0/gcc_64/lib/cmake/Qt6
-    set(__qt_inst_dir ${__qt_inst_dir}/../../..)
-    cmake_path(NORMAL_PATH __qt_inst_dir)
-    message("Qt install dir: ${__qt_inst_dir}")
-    message("Qt version: ${QT_VERSION}")
+    cmake_path(GET __qt_inst_dir PARENT_PATH __qt_inst_dir)
+    cmake_path(GET __qt_inst_dir PARENT_PATH __qt_inst_dir)
+    cmake_path(GET __qt_inst_dir PARENT_PATH __qt_inst_dir)
+    message("Qt SDK installation directory: ${__qt_inst_dir}")
+    message("Qt SDK version: ${QT_VERSION}")
     get_target_property(__qt_type Qt${QT_VERSION_MAJOR}::Core TYPE)
     if(__qt_type STREQUAL "STATIC_LIBRARY")
         set(__qt_type static)
     else()
         set(__qt_type shared)
     endif()
-    message("Qt library type: ${__qt_type}")
+    message("Qt SDK library type: ${__qt_type}")
     message("------------------------ FramelessHelper ------------------------")
     message("FramelessHelper version: ${PROJECT_VERSION}")
     message("FramelessHelper commit hash: ${PROJECT_VERSION_COMMIT}")
@@ -176,9 +196,10 @@ if(NOT FRAMELESSHELPER_NO_SUMMARY)
     message("[MSVC] Disable permissive checks: ${FRAMELESSHELPER_NO_PERMISSIVE_CHECKS}")
     message("Do not install anything for CMake install: ${FRAMELESSHELPER_NO_INSTALL}")
     message("Mitigate Spectre security vulnerabilities: ${FRAMELESSHELPER_ENABLE_SPECTRE}")
-    message("Enable EH Continuation (EHCONT) Metadata: ${FRAMELESSHELPER_ENABLE_EHCONTGUARD}")
+    message("[MSVC] Enable EH Continuation (EHCONT) Metadata: ${FRAMELESSHELPER_ENABLE_EHCONTGUARD}")
     message("Enable Intel CET: ${FRAMELESSHELPER_ENABLE_INTELCET}")
     message("Enable Intel JCC: ${FRAMELESSHELPER_ENABLE_INTELJCC}")
     message("Enable Control Flow Guard (CFG): ${FRAMELESSHELPER_ENABLE_CFGUARD}")
+    message("Build standalone demo projects: ${FRAMELESSHELPER_EXAMPLES_STANDALONE}")
     message("-----------------------------------------------------------------")
 endif()

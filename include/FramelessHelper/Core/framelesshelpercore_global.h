@@ -179,27 +179,35 @@ QT_END_NAMESPACE
 #endif
 
 #ifndef FRAMELESSHELPER_MAKE_VERSION
-#  define FRAMELESSHELPER_MAKE_VERSION(Major, Minor, Patch, Tweak) \
-     ((((Major) & 0xff) << 24) | (((Minor) & 0xff) << 16) | (((Patch) & 0xff) << 8) | ((Tweak) & 0xff))
+#  define FRAMELESSHELPER_MAKE_VERSION(Major, Minor, Patch) \
+     ((((Major) & 0xff) << 24) | (((Minor) & 0xff) << 16) | (((Patch) & 0xff) << 8))
 #endif
 
 #ifndef FRAMELESSHELPER_EXTRACT_VERSION
-#  define FRAMELESSHELPER_EXTRACT_VERSION(Version, Major, Minor, Patch, Tweak) \
+#  define FRAMELESSHELPER_EXTRACT_VERSION(Version, Major, Minor, Patch) \
      { \
          (Major) = (((Version) & 0xff) >> 24); \
          (Minor) = (((Version) & 0xff) >> 16); \
          (Patch) = (((Version) & 0xff) >> 8); \
-         (Tweak) = ((Version) & 0xff); \
      }
 #endif
+
+#ifndef FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
+// Call this function in your main() function if you are using FramelessHelper as a static library,
+// it can make sure the resources bundled in the static library are correctly initialized.
+// NOTE: This function is intentionally not inside any namespaces.
+FRAMELESSHELPER_CORE_API void framelesshelpercore_initResource();
+#endif // FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
 
 #include "framelesshelper.version"
 
 [[maybe_unused]] inline constexpr const int FRAMELESSHELPER_VERSION =
-      FRAMELESSHELPER_MAKE_VERSION(FRAMELESSHELPER_VERSION_MAJOR, FRAMELESSHELPER_VERSION_MINOR,
-                                   FRAMELESSHELPER_VERSION_PATCH, FRAMELESSHELPER_VERSION_TWEAK);
+      FRAMELESSHELPER_MAKE_VERSION(
+          FRAMELESSHELPER_VERSION_MAJOR,
+          FRAMELESSHELPER_VERSION_MINOR,
+          FRAMELESSHELPER_VERSION_PATCH);
 
 namespace Global
 {
@@ -244,6 +252,12 @@ Q_NAMESPACE_EXPORT(FRAMELESSHELPER_CORE_API)
     = FRAMELESSHELPER_BYTEARRAY_LITERAL("FRAMELESSHELPER_DONT_OVERRIDE_CURSOR");
 [[maybe_unused]] inline const QByteArray kDontToggleMaximizeVar
     = FRAMELESSHELPER_BYTEARRAY_LITERAL("FRAMELESSHELPER_DONT_TOGGLE_MAXIMIZE");
+[[maybe_unused]] inline const QByteArray kSysMenuDisableMinimizeVar
+    = FRAMELESSHELPER_BYTEARRAY_LITERAL("FRAMELESSHELPER_SYSTEM_MENU_DISABLE_MINIMIZE");
+[[maybe_unused]] inline const QByteArray kSysMenuDisableMaximizeVar
+    = FRAMELESSHELPER_BYTEARRAY_LITERAL("FRAMELESSHELPER_SYSTEM_MENU_DISABLE_MAXIMIZE");
+[[maybe_unused]] inline const QByteArray kSysMenuDisableRestoreVar
+    = FRAMELESSHELPER_BYTEARRAY_LITERAL("FRAMELESSHELPER_SYSTEM_MENU_DISABLE_RESTORE");
 
 enum class Option
 {
@@ -255,7 +269,8 @@ enum class Option
     CenterWindowBeforeShow = 5,
     EnableBlurBehindWindow = 6,
     ForceNonNativeBackgroundBlur = 7,
-    DisableLazyInitializationForMicaMaterial = 8
+    DisableLazyInitializationForMicaMaterial = 8,
+    ForceNativeBackgroundBlur = 9
 };
 Q_ENUM_NS(Option)
 

@@ -35,6 +35,7 @@
 #endif // Q_OS_WINDOWS
 #include <QtCore/qmutex.h>
 #include <QtCore/qtimer.h>
+#include <QtCore/qeventloop.h>
 #include <QtCore/qloggingcategory.h>
 #ifndef FRAMELESSHELPER_QUICK_NO_PRIVATE
 #  if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
@@ -237,6 +238,7 @@ void FramelessQuickHelperPrivate::attach()
     // due to QPA will reset the position and size of the window during it's
     // initialization process.
     QTimer::singleShot(0, this, [this](){
+        m_qpaReady = true;
         if (FramelessConfig::instance()->isSet(Option::CenterWindowBeforeShow)) {
             moveWindowToDesktopCenter();
         }
@@ -359,8 +361,7 @@ void FramelessQuickHelperPrivate::showSystemMenu(const QPoint &pos)
         return;
     }
     const WId windowId = window->winId();
-    const QPoint globalPos = window->mapToGlobal(pos);
-    const QPoint nativePos = Utils::toNativePixels(window, globalPos);
+    const QPoint nativePos = Utils::toNativeGlobalPosition(window, pos);
 #ifdef Q_OS_WINDOWS
     const SystemParameters params = getWindowData().params;
     Utils::showSystemMenu(windowId, nativePos, false, &params);
@@ -658,6 +659,30 @@ FramelessQuickHelper *FramelessQuickHelperPrivate::findOrCreateFramelessHelper(Q
         //instance->extendsContentIntoTitleBar();
     }
     return instance;
+}
+
+bool FramelessQuickHelperPrivate::isReady() const
+{
+    return m_qpaReady;
+}
+
+void FramelessQuickHelperPrivate::waitForReady()
+{
+    if (m_qpaReady) {
+        return;
+    }
+#if 1
+    QEventLoop loop;
+    Q_Q(FramelessQuickHelper);
+    const QMetaObject::Connection connection = connect(
+        q, &FramelessQuickHelper::ready, &loop, &QEventLoop::quit);
+    loop.exec();
+    disconnect(connection);
+#else
+    while (!m_qpaReady) {
+        QCoreApplication::processEvents();
+    }
+#endif
 }
 
 QRect FramelessQuickHelperPrivate::mapItemGeometryToScene(const QQuickItem * const item) const
@@ -991,6 +1016,18 @@ QuickWindowBorder *FramelessQuickHelper::windowBorder() const
 {
     Q_D(const FramelessQuickHelper);
     return d->findOrCreateWindowBorder();
+}
+
+bool FramelessQuickHelper::isReady() const
+{
+    Q_D(const FramelessQuickHelper);
+    return d->isReady();
+}
+
+void FramelessQuickHelper::waitForReady()
+{
+    Q_D(FramelessQuickHelper);
+    d->waitForReady();
 }
 
 void FramelessQuickHelper::extendsContentIntoTitleBar(const bool value)

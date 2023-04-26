@@ -84,6 +84,8 @@ FRAMELESSHELPER_STRING_CONSTANT(TrackMouseEvent)
 FRAMELESSHELPER_STRING_CONSTANT(FindWindowW)
 FRAMELESSHELPER_STRING_CONSTANT(UnregisterClassW)
 FRAMELESSHELPER_STRING_CONSTANT(DestroyWindow)
+FRAMELESSHELPER_STRING_CONSTANT(GetWindowPlacement)
+FRAMELESSHELPER_STRING_CONSTANT(SetWindowPlacement)
 [[maybe_unused]] static constexpr const char kFallbackTitleBarErrorMessage[] =
     "FramelessHelper is unable to create the fallback title bar window, and thus the snap layout feature will be disabled"
     " unconditionally. You can ignore this error and continue running your application, nothing else will be affected, "
@@ -98,6 +100,7 @@ struct Win32HelperData
     bool trackingMouse = false;
     WId fallbackTitleBarWindowId = 0;
     Dpi dpi = {};
+    QRect restoreGeometry = {};
 };
 
 struct Win32Helper
@@ -110,18 +113,16 @@ struct Win32Helper
 
 Q_GLOBAL_STATIC(Win32Helper, g_win32Helper)
 
-[[nodiscard]] static inline QString hwnd2str(const WId windowId)
-{
-    // NULL handle is allowed here.
-    return FRAMELESSHELPER_STRING_LITERAL("0x")
-        + QString::number(windowId, 16).toUpper();
-}
+[[nodiscard]] extern bool operator==(const RECT &lhs, const RECT &rhs) noexcept;
+[[nodiscard]] extern bool operator!=(const RECT &lhs, const RECT &rhs) noexcept;
 
-[[nodiscard]] static inline QString hwnd2str(const HWND hwnd)
-{
-    // NULL handle is allowed here.
-    return hwnd2str(reinterpret_cast<WId>(hwnd));
-}
+[[nodiscard]] extern QRect rect2qrect(const RECT &rect);
+[[nodiscard]] extern RECT qrect2rect(const QRect &qrect);
+
+[[nodiscard]] extern QString hwnd2str(const WId windowId);
+[[nodiscard]] extern QString hwnd2str(const HWND hwnd);
+
+[[nodiscard]] extern std::optional<MONITORINFOEXW> getMonitorForWindow(const HWND hwnd);
 
 [[nodiscard]] static inline LRESULT CALLBACK FallbackTitleBarWindowProc
     (const HWND hWnd, const UINT uMsg, const WPARAM wParam, const LPARAM lParam)
@@ -159,7 +160,7 @@ Q_GLOBAL_STATIC(Win32Helper, g_win32Helper)
     const bool isMouseEvent = (((uMsg >= WM_MOUSEFIRST) && (uMsg <= WM_MOUSELAST)) ||
           ((uMsg >= WM_NCMOUSEMOVE) && (uMsg <= WM_NCXBUTTONDBLCLK)));
     const auto releaseButtons = [&data](const std::optional<SystemButtonType> exclude) -> void {
-        static constexpr const auto defaultButtonState = ButtonState::Unspecified;
+        static constexpr const auto defaultButtonState = ButtonState::Normal;
         const SystemButtonType button = exclude.value_or(SystemButtonType::Unknown);
         if (button != SystemButtonType::WindowIcon) {
             data.params.setSystemButtonState(SystemButtonType::WindowIcon, defaultButtonState);
@@ -190,7 +191,7 @@ Q_GLOBAL_STATIC(Win32Helper, g_win32Helper)
     };
     const auto clickButton = [&releaseButtons, &data](const SystemButtonType button) -> void {
         releaseButtons(button);
-        data.params.setSystemButtonState(button, ButtonState::Clicked);
+        data.params.setSystemButtonState(button, ButtonState::Released);
     };
     switch (uMsg) {
     case WM_NCHITTEST: {
@@ -207,8 +208,6 @@ Q_GLOBAL_STATIC(Win32Helper, g_win32Helper)
         SystemButtonType buttonType = SystemButtonType::Unknown;
         if (data.params.isInsideSystemButtons(qtScenePos, &buttonType)) {
             switch (buttonType) {
-            case SystemButtonType::Unknown:
-                Q_UNREACHABLE_RETURN(HTNOWHERE);
             case SystemButtonType::WindowIcon:
                 return HTSYSMENU;
             case SystemButtonType::Help:
@@ -220,6 +219,8 @@ Q_GLOBAL_STATIC(Win32Helper, g_win32Helper)
                 return HTZOOM;
             case SystemButtonType::Close:
                 return HTCLOSE;
+            case SystemButtonType::Unknown:
+                Q_UNREACHABLE_RETURN(HTNOWHERE);
             }
         }
         // Returns "HTTRANSPARENT" to let the mouse event pass through this invisible
@@ -819,28 +820,22 @@ bool FramelessHelperWin::nativeEventFilter(const QByteArray &eventType, void *me
                 // we have to use another way to judge this if we are running
                 // on Windows 7 or Windows 8.
                 if (WindowsVersionHelper::isWin8Point1OrGreater()) {
-                    MONITORINFOEXW monitorInfo;
-                    SecureZeroMemory(&monitorInfo, sizeof(monitorInfo));
-                    monitorInfo.cbSize = sizeof(monitorInfo);
-                    const HMONITOR monitor = MonitorFromWindow(hWnd, MONITOR_DEFAULTTONEAREST);
-                    if (!monitor) {
-                        WARNING << Utils::getSystemErrorMessage(kMonitorFromWindow);
+                    const std::optional<MONITORINFOEXW> monitorInfo = getMonitorForWindow(hWnd);
+                    if (!monitorInfo.has_value()) {
+                        WARNING << "Failed to retrieve the window's monitor.";
                         break;
                     }
-                    if (GetMonitorInfoW(monitor, &monitorInfo) == FALSE) {
-                        WARNING << Utils::getSystemErrorMessage(kGetMonitorInfoW);
-                        break;
-                    }
+                    const RECT monitorRect = monitorInfo.value().rcMonitor;
                     // This helper can be used to determine if there's a
                     // auto-hide taskbar on the given edge of the monitor
                     // we're currently on.
-                    const auto hasAutohideTaskbar = [&monitorInfo](const UINT edge) -> bool {
-                        APPBARDATA _abd;
-                        SecureZeroMemory(&_abd, sizeof(_abd));
-                        _abd.cbSize = sizeof(_abd);
-                        _abd.uEdge = edge;
-                        _abd.rc = monitorInfo.rcMonitor;
-                        const auto hTaskbar = reinterpret_cast<HWND>(SHAppBarMessage(ABM_GETAUTOHIDEBAREX, &_abd));
+                    const auto hasAutohideTaskbar = [monitorRect](const UINT edge) -> bool {
+                        APPBARDATA abd;
+                        SecureZeroMemory(&abd, sizeof(abd));
+                        abd.cbSize = sizeof(abd);
+                        abd.uEdge = edge;
+                        abd.rc = monitorRect;
+                        const auto hTaskbar = reinterpret_cast<HWND>(SHAppBarMessage(ABM_GETAUTOHIDEBAREX, &abd));
                         return (hTaskbar != nullptr);
                     };
                     top = hasAutohideTaskbar(ABE_TOP);
@@ -849,24 +844,24 @@ bool FramelessHelperWin::nativeEventFilter(const QByteArray &eventType, void *me
                     right = hasAutohideTaskbar(ABE_RIGHT);
                 } else {
                     int edge = -1;
-                    APPBARDATA _abd;
-                    SecureZeroMemory(&_abd, sizeof(_abd));
-                    _abd.cbSize = sizeof(_abd);
-                    _abd.hWnd = FindWindowW(L"Shell_TrayWnd", nullptr);
-                    if (_abd.hWnd) {
+                    APPBARDATA abd;
+                    SecureZeroMemory(&abd, sizeof(abd));
+                    abd.cbSize = sizeof(abd);
+                    abd.hWnd = FindWindowW(L"Shell_TrayWnd", nullptr);
+                    if (abd.hWnd) {
                         const HMONITOR windowMonitor = MonitorFromWindow(hWnd, MONITOR_DEFAULTTONEAREST);
                         if (!windowMonitor) {
                             WARNING << Utils::getSystemErrorMessage(kMonitorFromWindow);
                             break;
                         }
-                        const HMONITOR taskbarMonitor = MonitorFromWindow(_abd.hWnd, MONITOR_DEFAULTTOPRIMARY);
+                        const HMONITOR taskbarMonitor = MonitorFromWindow(abd.hWnd, MONITOR_DEFAULTTOPRIMARY);
                         if (!taskbarMonitor) {
                             WARNING << Utils::getSystemErrorMessage(kMonitorFromWindow);
                             break;
                         }
                         if (taskbarMonitor == windowMonitor) {
-                            SHAppBarMessage(ABM_GETTASKBARPOS, &_abd);
-                            edge = _abd.uEdge;
+                            SHAppBarMessage(ABM_GETTASKBARPOS, &abd);
+                            edge = abd.uEdge;
                         }
                     } else {
                         WARNING << Utils::getSystemErrorMessage(kFindWindowW);
@@ -1149,16 +1144,12 @@ bool FramelessHelperWin::nativeEventFilter(const QByteArray &eventType, void *me
             *result = FALSE; // Use the default linear DPI scaling provided by Windows.
             return true; // Jump over Qt's wrong handling logic.
         }
-        const QSizeF oldSize = {qreal(clientRect.right - clientRect.left), qreal(clientRect.bottom - clientRect.top)};
-        static constexpr const auto defaultDpi = qreal(USER_DEFAULT_SCREEN_DPI);
-        // We need to round the scale factor according to Qt's rounding policy.
-        const qreal oldDpr = Utils::roundScaleFactor(qreal(data.dpi.x) / defaultDpi);
         const auto newDpi = UINT(wParam);
-        const qreal newDpr = Utils::roundScaleFactor(qreal(newDpi) / defaultDpi);
-        const QSizeF newSize = (oldSize / oldDpr * newDpr);
+        const QSize oldSize = {RECT_WIDTH(clientRect), RECT_HEIGHT(clientRect)};
+        const QSize newSize = Utils::rescaleSize(oldSize, data.dpi.x, newDpi);
         const auto suggestedSize = reinterpret_cast<LPSIZE>(lParam);
-        suggestedSize->cx = std::round(newSize.width());
-        suggestedSize->cy = std::round(newSize.height());
+        suggestedSize->cx = newSize.width();
+        suggestedSize->cy = newSize.height();
         // If the window frame is visible, we need to expand the suggested size, currently
         // it's pure client size, we need to add the frame size to it. Windows expects a
         // full window size, including the window frame.
@@ -1176,18 +1167,30 @@ bool FramelessHelperWin::nativeEventFilter(const QByteArray &eventType, void *me
     }
 #endif // (QT_VERSION <= QT_VERSION_CHECK(6, 4, 2))
     case WM_DPICHANGED: {
-        const Dpi dpi = {UINT(LOWORD(wParam)), UINT(HIWORD(wParam))};
-        DEBUG.noquote() << "New DPI for window" << hwnd2str(hWnd) << "is" << dpi;
+        const Dpi oldDpi = data.dpi;
+        const Dpi newDpi = {UINT(LOWORD(wParam)), UINT(HIWORD(wParam))};
+        if (Q_UNLIKELY(newDpi == oldDpi)) {
+            WARNING << "Wrong WM_DPICHANGED received: same DPI.";
+            break;
+        }
+        DEBUG.noquote() << "New DPI for window" << hwnd2str(hWnd)
+                        << "is" << newDpi << "(was" << oldDpi << ").";
         g_win32Helper()->mutex.lock();
-        g_win32Helper()->data[windowId].dpi = dpi;
+        g_win32Helper()->data[windowId].dpi = newDpi;
+        if (data.restoreGeometry.isValid() && !data.restoreGeometry.isNull()) {
+            // Update the window size only. The position should not be changed.
+            g_win32Helper()->data[windowId].restoreGeometry.setSize(
+                Utils::rescaleSize(data.restoreGeometry.size(), oldDpi.x, newDpi.x));
+        }
         g_win32Helper()->mutex.unlock();
 #if (QT_VERSION <= QT_VERSION_CHECK(6, 4, 2))
         // We need to wait until Qt has handled this message, otherwise everything
         // we have done here will always be overwritten.
-        QTimer::singleShot(0, qApp, [data](){ // Copy the variables intentionally, otherwise they'll go out of scope when Qt finally use them.
+        QWindow *window = data.params.getWindowHandle();
+        QTimer::singleShot(0, qApp, [window](){
             // Sync the internal window frame margins with the latest DPI, otherwise
             // we will get wrong window sizes after the DPI change.
-            Utils::updateInternalWindowFrameMargins(data.params.getWindowHandle(), true);
+            Utils::updateInternalWindowFrameMargins(window, true);
         });
 #endif // (QT_VERSION <= QT_VERSION_CHECK(6, 4, 2))
     } break;
@@ -1195,6 +1198,52 @@ bool FramelessHelperWin::nativeEventFilter(const QByteArray &eventType, void *me
         // Re-apply the custom window frame if recovered from the basic theme.
         Utils::updateWindowFrameMargins(windowId, false);
     } break;
+#if (QT_VERSION < QT_VERSION_CHECK(6, 5, 1))
+    case WM_ENTERSIZEMOVE:
+    case WM_EXITSIZEMOVE: {
+        if (!Utils::isWindowNoState(windowId)) {
+            break;
+        }
+        const QRect rect = Utils::getWindowRestoreGeometry(windowId);
+        if (rect.isNull() || !rect.isValid()) {
+            WARNING << "The calculated restore geometry is invalid.";
+            break;
+        }
+        const QMutexLocker locker(&g_win32Helper()->mutex);
+        g_win32Helper()->data[windowId].restoreGeometry = rect;
+    } break;
+    case WM_SIZE: {
+        if (wParam != SIZE_MAXIMIZED) {
+            break;
+        }
+        if (data.restoreGeometry.isNull() || !data.restoreGeometry.isValid()) {
+            const QRect rect = Utils::getWindowRestoreGeometry(windowId);
+            if (rect.isValid() && !rect.isNull()) {
+                const QMutexLocker locker(&g_win32Helper()->mutex);
+                g_win32Helper()->data[windowId].restoreGeometry = rect;
+            } else {
+                WARNING << "The calculated restore geometry is invalid.";
+            }
+            break;
+        }
+        WINDOWPLACEMENT wp;
+        SecureZeroMemory(&wp, sizeof(wp));
+        wp.length = sizeof(wp);
+        if (GetWindowPlacement(hWnd, &wp) == FALSE) {
+            WARNING << Utils::getSystemErrorMessage(kGetWindowPlacement);
+            break;
+        }
+        // The restore geometry is correct, no need to bother.
+        if (rect2qrect(wp.rcNormalPosition) == data.restoreGeometry) {
+            break;
+        }
+        // OK, the restore geometry is wrong, let's correct it then :)
+        wp.rcNormalPosition = qrect2rect(data.restoreGeometry);
+        if (SetWindowPlacement(hWnd, &wp) == FALSE) {
+            WARNING << Utils::getSystemErrorMessage(kSetWindowPlacement);
+        }
+    } break;
+#endif // (QT_VERSION < QT_VERSION_CHECK(6, 5, 1))
     default:
         break;
     }

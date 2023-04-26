@@ -25,7 +25,7 @@
 cmake_minimum_required(VERSION 3.20)
 
 project(FramelessHelper
-    VERSION "2.3.5"
+    VERSION "2.3.7"
     DESCRIPTION "Cross-platform window customization framework for Qt Widgets and Qt Quick."
     HOMEPAGE_URL "https://github.com/wangwenx190/framelesshelper/"
 )
@@ -160,25 +160,15 @@ if(NOT FRAMELESSHELPER_NO_SUMMARY)
     message("Prefix paths: ${CMAKE_PREFIX_PATH}")
     message("Toolchain file: ${CMAKE_TOOLCHAIN_FILE}")
     message("------------------------------ Qt -------------------------------")
-    set(__qt_inst_dir)
-    if(DEFINED Qt6_DIR)
-        set(__qt_inst_dir "${Qt6_DIR}")
-    else()
-        set(__qt_inst_dir "${Qt5_DIR}")
-    endif()
-    # /whatever/Qt/6.4.0/gcc_64/lib/cmake/Qt6
-    cmake_path(GET __qt_inst_dir PARENT_PATH __qt_inst_dir)
-    cmake_path(GET __qt_inst_dir PARENT_PATH __qt_inst_dir)
-    cmake_path(GET __qt_inst_dir PARENT_PATH __qt_inst_dir)
+    query_qt_paths(SDK_DIR __qt_inst_dir)
+    query_qt_library_info(VERSION __qt_version STATIC __qt_static_lib)
     message("Qt SDK installation directory: ${__qt_inst_dir}")
-    message("Qt SDK version: ${QT_VERSION}")
-    get_target_property(__qt_type Qt${QT_VERSION_MAJOR}::Core TYPE)
-    if(__qt_type STREQUAL "STATIC_LIBRARY")
-        set(__qt_type static)
+    message("Qt SDK version: ${__qt_version}")
+    if(__qt_static_lib)
+        message("Qt SDK library type: static")
     else()
-        set(__qt_type shared)
+        message("Qt SDK library type: shared")
     endif()
-    message("Qt SDK library type: ${__qt_type}")
     message("------------------------ FramelessHelper ------------------------")
     message("FramelessHelper version: ${PROJECT_VERSION}")
     message("FramelessHelper commit hash: ${PROJECT_VERSION_COMMIT}")

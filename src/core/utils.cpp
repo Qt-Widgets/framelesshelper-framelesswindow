@@ -92,7 +92,7 @@ static const QHash<int, FONT_ICON> g_fontIconsTable = {
     if (!screen) {
         return {};
     }
-    return screen->virtualGeometry().topLeft();
+    return screen->geometry().topLeft();
 }
 #endif // FRAMELESSHELPER_CORE_NO_PRIVATE
 
@@ -228,8 +228,8 @@ void Utils::moveWindowToDesktopCenter(FramelessParamsConst params, const bool co
     if (!screen) {
         return;
     }
-    const QSize screenSize = (considerTaskBar ? screen->availableVirtualSize() : screen->virtualSize());
-    const QPoint offset = (considerTaskBar ? screen->availableVirtualGeometry().topLeft() : QPoint(0, 0));
+    const QSize screenSize = (considerTaskBar ? screen->availableSize() : screen->size());
+    const QPoint offset = (considerTaskBar ? screen->availableGeometry().topLeft() : QPoint(0, 0));
     const int newX = std::round(qreal(screenSize.width() - windowSize.width()) / 2.0);
     const int newY = std::round(qreal(screenSize.height() - windowSize.height()) / 2.0);
     params->setWindowPosition(QPoint(newX + offset.x(), newY + offset.y()));
@@ -265,7 +265,7 @@ bool Utils::isThemeChangeEvent(const QEvent * const event)
 
 QColor Utils::calculateSystemButtonBackgroundColor(const SystemButtonType button, const ButtonState state)
 {
-    if (state == ButtonState::Unspecified) {
+    if (state == ButtonState::Normal) {
         return kDefaultTransparentColor;
     }
     const bool isClose = (button == SystemButtonType::Close);
@@ -520,6 +520,44 @@ int Utils::horizontalAdvance(const QFontMetrics &fm, const QString &str)
 #else // (QT_VERSION < QT_VERSION_CHECK(5, 11, 0))
     return fm.width();
 #endif // (QT_VERSION >= QT_VERSION_CHECK(5, 11, 0))
+}
+
+qreal Utils::getRelativeScaleFactor(const quint32 oldDpi, const quint32 newDpi)
+{
+    if (newDpi == oldDpi) {
+        return qreal(1);
+    }
+#ifdef Q_OS_MACOS
+    static constexpr const auto defaultDpi = quint32(72);
+#else // !Q_OS_MACOS
+    static constexpr const auto defaultDpi = quint32(96);
+#endif // Q_OS_MACOS
+    if ((oldDpi < defaultDpi) || (newDpi < defaultDpi)) {
+        return qreal(1);
+    }
+    // We need to round the scale factor according to Qt's rounding policy.
+    const qreal oldDpr = roundScaleFactor(qreal(oldDpi) / qreal(defaultDpi));
+    const qreal newDpr = roundScaleFactor(qreal(newDpi) / qreal(defaultDpi));
+    return qreal(newDpr / oldDpr);
+}
+
+QSize Utils::rescaleSize(const QSize &oldSize, const quint32 oldDpi, const quint32 newDpi)
+{
+    if (oldSize.isEmpty()) {
+        return {};
+    }
+    if (newDpi == oldDpi) {
+        return oldSize;
+    }
+    const qreal scaleFactor = getRelativeScaleFactor(oldDpi, newDpi);
+    if (qFuzzyIsNull(scaleFactor)) {
+        return {};
+    }
+    if (qFuzzyCompare(scaleFactor, qreal(1))) {
+        return oldSize;
+    }
+    const QSizeF newSize = QSizeF(oldSize) * scaleFactor;
+    return newSize.toSize(); // The numbers will be rounded to the nearest integer.
 }
 
 FRAMELESSHELPER_END_NAMESPACE

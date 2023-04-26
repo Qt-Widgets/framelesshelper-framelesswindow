@@ -278,8 +278,6 @@ void FramelessQuickHelperPrivate::setSystemButton(QQuickItem *item, const QuickG
         return;
     }
     switch (buttonType) {
-    case QuickGlobal::SystemButtonType::Unknown:
-        Q_UNREACHABLE_RETURN(static_cast<void>(0));
     case QuickGlobal::SystemButtonType::WindowIcon:
         data->windowIconButton = item;
         break;
@@ -296,6 +294,8 @@ void FramelessQuickHelperPrivate::setSystemButton(QQuickItem *item, const QuickG
     case QuickGlobal::SystemButtonType::Close:
         data->closeButton = item;
         break;
+    case QuickGlobal::SystemButtonType::Unknown:
+        Q_UNREACHABLE_RETURN(static_cast<void>(0));
     }
 }
 
@@ -827,8 +827,6 @@ void FramelessQuickHelperPrivate::setSystemButtonState(const QuickGlobal::System
     const QuickHelperData data = getWindowData();
     QQuickAbstractButton *quickButton = nullptr;
     switch (button) {
-    case QuickGlobal::SystemButtonType::Unknown:
-        Q_UNREACHABLE_RETURN(void(0));
     case QuickGlobal::SystemButtonType::WindowIcon:
         if (data.windowIconButton) {
             if (const auto btn = qobject_cast<QQuickAbstractButton *>(data.windowIconButton)) {
@@ -865,36 +863,39 @@ void FramelessQuickHelperPrivate::setSystemButtonState(const QuickGlobal::System
             }
         }
         break;
+    case QuickGlobal::SystemButtonType::Unknown:
+        Q_UNREACHABLE_RETURN(void(0));
     }
-    if (quickButton) {
-        const auto updateButtonState = [state](QQuickAbstractButton *btn) -> void {
-            Q_ASSERT(btn);
-            if (!btn) {
-                return;
-            }
-            switch (state) {
-            case QuickGlobal::ButtonState::Unspecified: {
-                btn->setPressed(false);
-                btn->setHovered(false);
-            } break;
-            case QuickGlobal::ButtonState::Hovered: {
-                btn->setPressed(false);
-                btn->setHovered(true);
-            } break;
-            case QuickGlobal::ButtonState::Pressed: {
-                btn->setHovered(true);
-                btn->setPressed(true);
-            } break;
-            case QuickGlobal::ButtonState::Clicked: {
-                // Clicked: pressed --> released, so behave like hovered.
-                btn->setPressed(false);
-                btn->setHovered(true);
-                QQuickAbstractButtonPrivate::get(btn)->click();
-            } break;
-            }
-        };
-        updateButtonState(quickButton);
+    if (!quickButton) {
+        return;
     }
+    const auto updateButtonState = [state](QQuickAbstractButton *btn) -> void {
+        Q_ASSERT(btn);
+        if (!btn) {
+            return;
+        }
+        switch (state) {
+        case QuickGlobal::ButtonState::Normal: {
+            btn->setPressed(false);
+            btn->setHovered(false);
+        } break;
+        case QuickGlobal::ButtonState::Hovered: {
+            btn->setPressed(false);
+            btn->setHovered(true);
+        } break;
+        case QuickGlobal::ButtonState::Pressed: {
+            btn->setHovered(true);
+            btn->setPressed(true);
+        } break;
+        case QuickGlobal::ButtonState::Released: {
+            // Clicked: pressed --> released, so behave like hovered.
+            btn->setPressed(false);
+            btn->setHovered(true);
+            QQuickAbstractButtonPrivate::get(btn)->click();
+        } break;
+        }
+    };
+    updateButtonState(quickButton);
 #endif // FRAMELESSHELPER_QUICK_NO_PRIVATE
 }
 

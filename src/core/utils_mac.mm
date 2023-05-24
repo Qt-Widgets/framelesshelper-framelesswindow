@@ -28,7 +28,6 @@
 #include "framelessconfig_p.h"
 #include "framelesshelpercore_global_p.h"
 #include <QtCore/qhash.h>
-#include <QtCore/qmutex.h>
 #include <QtCore/qcoreapplication.h>
 #include <QtCore/qloggingcategory.h>
 #if (QT_VERSION >= QT_VERSION_CHECK(5, 9, 0))
@@ -362,9 +361,12 @@ public Q_SLOTS:
         nswindow.showsToolbarButton = NO;
         nswindow.movableByWindowBackground = NO;
         nswindow.movable = NO;
+        // For some unknown reason, we don't need the following hack in Qt versions below or equal to 6.2.4.
+#if (QT_VERSION > QT_VERSION_CHECK(6, 2, 4))
         [nswindow standardWindowButton:NSWindowCloseButton].hidden = (visible ? NO : YES);
         [nswindow standardWindowButton:NSWindowMiniaturizeButton].hidden = (visible ? NO : YES);
         [nswindow standardWindowButton:NSWindowZoomButton].hidden = (visible ? NO : YES);
+#endif
     }
 
     void setBlurBehindWindowEnabled(const bool enable)
@@ -431,7 +433,7 @@ public Q_SLOTS:
             return;
         }
         const auto view = static_cast<NSVisualEffectView *>(blurEffect);
-        if (Utils::shouldAppsUseDarkMode()) {
+        if (FramelessManager::instance()->systemTheme() == SystemTheme::Dark) {
             view.appearance = [NSAppearance appearanceNamed:@"NSAppearanceNameVibrantDark"];
         } else {
             view.appearance = [NSAppearance appearanceNamed:@"NSAppearanceNameVibrantLight"];
@@ -551,7 +553,6 @@ private:
 
 struct MacUtilsData
 {
-    QMutex mutex;
     QHash<WId, NSWindowProxy *> hash = {};
 };
 
@@ -571,13 +572,27 @@ Q_GLOBAL_STATIC(MacUtilsData, g_macUtilsData);
     return [nsview window];
 }
 
+static inline void cleanupProxy()
+{
+    if (g_macUtilsData()->hash.isEmpty()) {
+        return;
+    }
+    for (auto &&proxy : std::as_const(g_macUtilsData()->hash)) {
+        Q_ASSERT(proxy);
+        if (!proxy) {
+            continue;
+        }
+        delete proxy;
+    }
+    g_macUtilsData()->hash.clear();
+}
+
 [[nodiscard]] static inline NSWindowProxy *ensureWindowProxy(const WId windowId)
 {
     Q_ASSERT(windowId);
     if (!windowId) {
         return nil;
     }
-    const QMutexLocker locker(&g_macUtilsData()->mutex);
     if (!g_macUtilsData()->hash.contains(windowId)) {
         QWindow * const qwindow = Utils::findWindow(windowId);
         Q_ASSERT(qwindow);
@@ -592,24 +607,11 @@ Q_GLOBAL_STATIC(MacUtilsData, g_macUtilsData);
         const auto proxy = new NSWindowProxy(qwindow, nswindow);
         g_macUtilsData()->hash.insert(windowId, proxy);
     }
-    volatile static const auto hook = []() -> int {
-        registerUninitializeHook([](){
-            const QMutexLocker locker(&g_macUtilsData()->mutex);
-            if (g_macUtilsData()->hash.isEmpty()) {
-                return;
-            }
-            for (auto &&proxy : std::as_const(g_macUtilsData()->hash)) {
-                Q_ASSERT(proxy);
-                if (!proxy) {
-                    continue;
-                }
-                delete proxy;
-            }
-            g_macUtilsData()->hash.clear();
-        });
-        return 0;
-    }();
-    Q_UNUSED(hook);
+    static bool cleanerInstalled = false;
+    if (!cleanerInstalled) {
+        cleanerInstalled = true;
+        qAddPostRoutine(cleanupProxy);
+    }
     return g_macUtilsData()->hash.value(windowId);
 }
 
@@ -778,7 +780,6 @@ void Utils::removeWindowProxy(const WId windowId)
     if (!windowId) {
         return;
     }
-    const QMutexLocker locker(&g_macUtilsData()->mutex);
     if (!g_macUtilsData()->hash.contains(windowId)) {
         return;
     }

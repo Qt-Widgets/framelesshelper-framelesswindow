@@ -26,7 +26,6 @@
 #include "framelesshelpercore_global_p.h"
 #include "versionnumber_p.h"
 #include "utils.h"
-#include <QtCore/qmutex.h>
 #include <QtCore/qiodevice.h>
 #include <QtCore/qcoreapplication.h>
 #include <QtCore/qloggingcategory.h>
@@ -146,33 +145,16 @@ FRAMELESSHELPER_BYTEARRAY_CONSTANT(xcb)
 
 [[maybe_unused]] static constexpr const char kNoLogoEnvVar[] = "FRAMELESSHELPER_NO_LOGO";
 
-struct CoreData
-{
-    QMutex mutex;
-    QList<InitializeHookCallback> initHooks = {};
-    QList<UninitializeHookCallback> uninitHooks = {};
-};
-
-Q_GLOBAL_STATIC(CoreData, coreData)
-
 void registerInitializeHook(const InitializeHookCallback &cb)
 {
-    Q_ASSERT(cb);
-    if (!cb) {
-        return;
-    }
-    const QMutexLocker locker(&coreData()->mutex);
-    coreData()->initHooks.append(cb);
+    Q_UNUSED(cb);
+    WARNING << "registerInitializeHook: This function is deprecated and will be removed in a future version. Please consider using Qt's official Q_COREAPP_STARTUP_FUNCTION() macro instead.";
 }
 
 void registerUninitializeHook(const UninitializeHookCallback &cb)
 {
-    Q_ASSERT(cb);
-    if (!cb) {
-        return;
-    }
-    const QMutexLocker locker(&coreData()->mutex);
-    coreData()->uninitHooks.append(cb);
+    Q_UNUSED(cb);
+    WARNING << "registerUninitializeHook: This function is deprecated and will be removed in a future version. Please consider using Qt's official qAddPostRoutine() function instead.";
 }
 
 namespace FramelessHelper::Core
@@ -231,17 +213,6 @@ void initialize()
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
     QCoreApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
 #endif
-
-    const QMutexLocker locker(&coreData()->mutex);
-    if (!coreData()->initHooks.isEmpty()) {
-        for (auto &&hook : std::as_const(coreData()->initHooks)) {
-            Q_ASSERT(hook);
-            if (!hook) {
-                continue;
-            }
-            hook();
-        }
-    }
 }
 
 void uninitialize()
@@ -251,18 +222,6 @@ void uninitialize()
         return;
     }
     uninited = true;
-
-    const QMutexLocker locker(&coreData()->mutex);
-    if (coreData()->uninitHooks.isEmpty()) {
-        return;
-    }
-    for (auto &&hook : std::as_const(coreData()->uninitHooks)) {
-        Q_ASSERT(hook);
-        if (!hook) {
-            continue;
-        }
-        hook();
-    }
 }
 
 VersionInfo version()

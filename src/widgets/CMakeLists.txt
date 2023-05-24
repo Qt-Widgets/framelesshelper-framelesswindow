@@ -249,3 +249,7 @@ if(NOT FRAMELESSHELPER_NO_INSTALL)
         INCLUDES DESTINATION "${__inc_dir}"
     )
 endif()
+
+if(NOT FRAMELESSHELPER_NO_SUMMARY)
+    dump_target_info(TARGETS ${SUB_PROJ_NAME})
+endif()

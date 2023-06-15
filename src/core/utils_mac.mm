@@ -233,7 +233,6 @@ public:
         qwindow = qtWindow;
         nswindow = macWindow;
         instances.insert(macWindow, this);
-        saveState();
         if (!windowClass) {
             windowClass = [nswindow class];
             Q_ASSERT(windowClass);
@@ -245,41 +244,12 @@ public:
     {
         instances.remove(nswindow);
         if (instances.count() <= 0) {
-            restoreImplementations();
             windowClass = nil;
         }
-        restoreState();
         nswindow = nil;
     }
 
 public Q_SLOTS:
-    void saveState()
-    {
-        oldStyleMask = nswindow.styleMask;
-        oldTitlebarAppearsTransparent = nswindow.titlebarAppearsTransparent;
-        oldTitleVisibility = nswindow.titleVisibility;
-        oldHasShadow = nswindow.hasShadow;
-        oldShowsToolbarButton = nswindow.showsToolbarButton;
-        oldMovableByWindowBackground = nswindow.movableByWindowBackground;
-        oldMovable = nswindow.movable;
-        oldCloseButtonVisible = ![nswindow standardWindowButton:NSWindowCloseButton].hidden;
-        oldMiniaturizeButtonVisible = ![nswindow standardWindowButton:NSWindowMiniaturizeButton].hidden;
-        oldZoomButtonVisible = ![nswindow standardWindowButton:NSWindowZoomButton].hidden;
-    }
-
-    void restoreState()
-    {
-        nswindow.styleMask = oldStyleMask;
-        nswindow.titlebarAppearsTransparent = oldTitlebarAppearsTransparent;
-        nswindow.titleVisibility = oldTitleVisibility;
-        nswindow.hasShadow = oldHasShadow;
-        nswindow.showsToolbarButton = oldShowsToolbarButton;
-        nswindow.movableByWindowBackground = oldMovableByWindowBackground;
-        nswindow.movable = oldMovable;
-        [nswindow standardWindowButton:NSWindowCloseButton].hidden = !oldCloseButtonVisible;
-        [nswindow standardWindowButton:NSWindowMiniaturizeButton].hidden = !oldMiniaturizeButtonVisible;
-        [nswindow standardWindowButton:NSWindowZoomButton].hidden = !oldZoomButtonVisible;
-    }
 
     void replaceImplementations()
     {
@@ -516,17 +486,6 @@ private:
     //NSEvent *lastMouseDownEvent = nil;
     NSView *blurEffect = nil;
 
-    NSWindowStyleMask oldStyleMask = 0;
-    BOOL oldTitlebarAppearsTransparent = NO;
-    BOOL oldHasShadow = NO;
-    BOOL oldShowsToolbarButton = NO;
-    BOOL oldMovableByWindowBackground = NO;
-    BOOL oldMovable = NO;
-    BOOL oldCloseButtonVisible = NO;
-    BOOL oldMiniaturizeButtonVisible = NO;
-    BOOL oldZoomButtonVisible = NO;
-    NSWindowTitleVisibility oldTitleVisibility = NSWindowTitleVisible;
-
     QMetaObject::Connection widthChangeConnection = {};
     QMetaObject::Connection heightChangeConnection = {};
     QMetaObject::Connection themeChangeConnection = {};
@@ -615,12 +574,6 @@ static inline void cleanupProxy()
     return g_macUtilsData()->hash.value(windowId);
 }
 
-SystemTheme Utils::getSystemTheme()
-{
-    // ### TODO: how to detect high contrast mode on macOS?
-    return (shouldAppsUseDarkMode() ? SystemTheme::Dark : SystemTheme::Light);
-}
-
 void Utils::setSystemTitleBarVisible(const WId windowId, const bool visible)
 {
     Q_ASSERT(windowId);
@@ -678,7 +631,7 @@ void Utils::startSystemResize(QWindow *window, const Qt::Edges edges, const QPoi
 #endif
 }
 
-QColor Utils::getControlsAccentColor()
+QColor Utils::getAccentColor_macos()
 {
     return qt_mac_toQColor([NSColor controlAccentColor]);
 }
@@ -793,7 +746,7 @@ void Utils::removeWindowProxy(const WId windowId)
 
 QColor Utils::getFrameBorderColor(const bool active)
 {
-    return (active ? getControlsAccentColor() : kDefaultDarkGrayColor);
+    return (active ? getAccentColor() : kDefaultDarkGrayColor);
 }
 
 FRAMELESSHELPER_END_NAMESPACE

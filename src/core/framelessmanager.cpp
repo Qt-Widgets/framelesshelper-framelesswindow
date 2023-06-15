@@ -36,6 +36,7 @@
 #include <QtCore/qcoreapplication.h>
 #include <QtCore/qloggingcategory.h>
 #include <QtGui/qfontdatabase.h>
+#include <QtGui/qwindow.h>
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 5, 0))
 #  include <QtGui/qguiapplication.h>
 #  include <QtGui/qstylehints.h>
@@ -209,6 +210,7 @@ void FramelessManagerPrivate::addWindow(FramelessParamsConst params)
     }
     Utils::installSystemMenuHook(windowId, params);
 #endif
+    connect(params->getWindowHandle(), &QWindow::destroyed, FramelessManager::instance(), [windowId](){ removeWindow(windowId); });
 }
 
 void FramelessManagerPrivate::removeWindow(const WId windowId)
@@ -229,22 +231,17 @@ void FramelessManagerPrivate::removeWindow(const WId windowId)
     if (!pureQt) {
         FramelessHelperWin::removeWindow(windowId);
     }
-    Utils::uninstallSystemMenuHook(windowId);
+    Utils::removeSysMenuHook(windowId);
+    Utils::removeMicaWindow(windowId);
 #endif
 }
 
 void FramelessManagerPrivate::notifySystemThemeHasChangedOrNot()
 {
-    const SystemTheme currentSystemTheme = Utils::getSystemTheme();
+    const SystemTheme currentSystemTheme = (Utils::shouldAppsUseDarkMode() ? SystemTheme::Dark : SystemTheme::Light);
+    const QColor currentAccentColor = Utils::getAccentColor();
 #ifdef Q_OS_WINDOWS
     const DwmColorizationArea currentColorizationArea = Utils::getDwmColorizationArea();
-    const QColor currentAccentColor = Utils::getDwmAccentColor();
-#endif
-#ifdef Q_OS_LINUX
-    const QColor currentAccentColor = Utils::getWmThemeColor();
-#endif
-#ifdef Q_OS_MACOS
-    const QColor currentAccentColor = Utils::getControlsAccentColor();
 #endif
     bool notify = false;
     if (m_systemTheme != currentSystemTheme) {
@@ -329,16 +326,10 @@ bool FramelessManagerPrivate::isThemeOverrided() const
 
 void FramelessManagerPrivate::initialize()
 {
-    m_systemTheme = Utils::getSystemTheme();
+    m_systemTheme = (Utils::shouldAppsUseDarkMode() ? SystemTheme::Dark : SystemTheme::Light);
+    m_accentColor = Utils::getAccentColor();
 #ifdef Q_OS_WINDOWS
     m_colorizationArea = Utils::getDwmColorizationArea();
-    m_accentColor = Utils::getDwmAccentColor();
-#endif
-#ifdef Q_OS_LINUX
-    m_accentColor = Utils::getWmThemeColor();
-#endif
-#ifdef Q_OS_MACOS
-    m_accentColor = Utils::getControlsAccentColor();
 #endif
     m_wallpaper = Utils::getWallpaperFilePath();
     m_wallpaperAspectStyle = Utils::getWallpaperAspectStyle();

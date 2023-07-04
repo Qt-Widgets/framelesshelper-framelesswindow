@@ -25,13 +25,14 @@
 cmake_minimum_required(VERSION 3.20)
 
 project(FramelessHelper
-    VERSION "2.3.7"
+    VERSION "2.4.0"
     DESCRIPTION "Cross-platform window customization framework for Qt Widgets and Qt Quick."
     HOMEPAGE_URL "https://github.com/wangwenx190/framelesshelper/"
 )
 
 include(CMakeDependentOption)
 
+# TODO: Use add_feature_info() for every option below? Is it worth doing?
 option(FRAMELESSHELPER_BUILD_STATIC "Build FramelessHelper as a static library." OFF)
 option(FRAMELESSHELPER_BUILD_WIDGETS "Build FramelessHelper's Widgets module." ON)
 option(FRAMELESSHELPER_BUILD_QUICK "Build FramelessHelper's Quick module." ON)
@@ -53,6 +54,7 @@ option(FRAMELESSHELPER_ENABLE_CFGUARD "Enable Control Flow Guard (CFG)." OFF)
 option(FRAMELESSHELPER_EXAMPLES_STANDALONE "Build the demo projects as standalone CMake projects." OFF)
 cmake_dependent_option(FRAMELESSHELPER_ENABLE_UNIVERSAL_BUILD "macOS only: build universal library/example for Mac." ON APPLE OFF)
 option(FRAMELESSHELPER_FORCE_LTO "Force enable LTO/LTCG even when building static libraries." OFF)
+option(FRAMELESSHELPER_REPRODUCIBLE_OUTPUT "Don't update the build commit and date dynamically." OFF)
 
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui)
@@ -94,10 +96,11 @@ setup_project(
 unset(__extra_flags)
 
 set(PROJECT_VERSION_COMMIT "UNKNOWN")
-get_commit_hash(RESULT PROJECT_VERSION_COMMIT)
-
 set(PROJECT_COMPILE_DATETIME "UNKNOWN")
-string(TIMESTAMP PROJECT_COMPILE_DATETIME UTC)
+if(NOT FRAMELESSHELPER_REPRODUCIBLE_OUTPUT)
+    get_commit_hash(RESULT PROJECT_VERSION_COMMIT)
+    string(TIMESTAMP PROJECT_COMPILE_DATETIME UTC)
+endif()
 
 if(MINGW AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     set(FRAMELESSHELPER_ENABLE_SPECTRE OFF)
@@ -111,10 +114,17 @@ if(MSVC)
     if(FRAMELESSHELPER_ENABLE_VCLTL)
         include(cmake/VC-LTL.cmake)
         if("x${SupportLTL}" STREQUAL "xtrue")
+            # Make sure we will always overwrite the previous settings.
+            unset(CMAKE_MSVC_RUNTIME_LIBRARY)
+            unset(CMAKE_MSVC_RUNTIME_LIBRARY CACHE)
+            #unset(CMAKE_MSVC_RUNTIME_LIBRARY PARENT_SCOPE)
             set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>" CACHE STRING "" FORCE)
         endif()
     endif()
     if(FRAMELESSHELPER_ENABLE_YYTHUNKS)
+        unset(YYTHUNKS_TARGET_OS)
+        unset(YYTHUNKS_TARGET_OS CACHE)
+        #unset(YYTHUNKS_TARGET_OS PARENT_SCOPE)
         set(YYTHUNKS_TARGET_OS "WinXP" CACHE STRING "" FORCE)
         include(cmake/YY-Thunks.cmake)
     endif()
@@ -223,5 +233,6 @@ if(NOT FRAMELESSHELPER_NO_SUMMARY)
     message("Build standalone demo projects: ${FRAMELESSHELPER_EXAMPLES_STANDALONE}")
     message("[macOS]: Build universal library/example: ${FRAMELESSHELPER_ENABLE_UNIVERSAL_BUILD}")
     message("Force enable LTO: ${FRAMELESSHELPER_FORCE_LTO}")
+    message("Make output reproducible: ${FRAMELESSHELPER_REPRODUCIBLE_OUTPUT}")
     message("-----------------------------------------------------------------")
 endif()

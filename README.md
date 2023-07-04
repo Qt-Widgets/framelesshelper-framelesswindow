@@ -28,6 +28,11 @@ You can join our [Discord channel](https://discord.gg/grrM4Tmesy) to communicate
 - Widgets: Nested frameless windows are supported now!
 - Linux: There have been many improvements to the Linux/X11 implementation! Most of them won't be directly visible to the user, but the code quality has been greatly improved.
 - macOS: The frameless windows will now use native window frame and buttons, only the title bar itself is hidden, which also means the window will have round corners as all other native windows on macOS.
+- Mica Material: It is now possible to load wallpaper images with very large file size or resolution, for example, 4K pictures. However, if the images have larger resolution than 1920x1080, they will be shrinked to reduce memory usage, and this process will also lower the image quality and break the aspect ratio of them.
+- Mica Material: FramelessHelper will now use a seperate thread to load and apply special effects to the wallpaper image, to speed up application startup performance and avoid such process block the main thread.
+- Window management: It is now possible to close the window (the dtor is executed) and show it again without breaking the frameless functionalities.
+- Theme: It is now possible to force a desired theme instead of always respecting the system theme.
+- Build system: The [**Ninja Multi-Config**](https://cmake.org/cmake/help/latest/generator/Ninja%20Multi-Config.html) generator is fully supported now, finally!
 - Routine bug fixes and internal refactorings.
 
 ## Highlights v2.3
@@ -147,7 +152,7 @@ cmake -DQt5_DIR=C:/Qt/5.15.2/msvc2019_64/lib/cmake/Qt5 [other parameters ...]
 
 If there are any errors when cloning the submodules, try run `git submodule update --init --recursive --remote` in the project directory, that command will download & update all the submodules. If it fails again, try execute it multiple times until it finally succeeds.
 
-Once the compilation and installation is done, you will be able to use the `find_package(FramelessHelper REQUIRED COMPONENTS Core Widgets Quick)` command to find and link to the FramelessHelper library. But before doing that, please make sure CMake knows where to find FramelessHelper, by passing the `CMAKE_PREFIX_PATH` variable to it. For example: `-DCMAKE_PREFIX_PATH=C:/my-cmake-packages;C:/my-toolchain;etc...`. Build FramelessHelper as a sub-directory of your CMake project is of course also supported. The supported FramelessHelper target names are `FramelessHelper::Core`, `FramelessHelper::Widgets` and `FramelessHelper::Quick`. Example code:
+Once the compilation and installation is done, you will be able to use the `find_package(FramelessHelper REQUIRED COMPONENTS Core Widgets Quick)` command to find and link to the FramelessHelper library. But before doing that, please make sure CMake knows where to find FramelessHelper, by passing the `CMAKE_PREFIX_PATH` or `FramelessHelper_DIR` variable to it. For example: `-DCMAKE_PREFIX_PATH=C:/my-cmake-packages;C:/my-toolchain;etc...` or `-DFramelessHelper_DIR=C:/Projects/FramelessHelper/lib64/cmake/FramelessHelper`. Build FramelessHelper as a sub-directory of your CMake project is of course also supported. The supported FramelessHelper target names are `FramelessHelper::Core`, `FramelessHelper::Widgets` and `FramelessHelper::Quick`. Example code:
 
 ```cmake
 # Find Qt:
@@ -181,8 +186,6 @@ list(REMOVE_DUPLICATES QML_IMPORT_PATH)
 # Force cache refresh:
 set(QML_IMPORT_PATH ${QML_IMPORT_PATH} CACHE STRING "Qt Creator extra QML import paths" FORCE)
 ```
-
-**IMPORTANT NOTE**: Currently *Ninja Multi-Config* is known to be **NOT** supported, you can only build one single configuration at a time, however, I'm planning to support it as soon as possible, in a future version.
 
 ## Use
 

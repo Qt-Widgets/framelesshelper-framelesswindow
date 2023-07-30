@@ -27,6 +27,7 @@
 #ifdef Q_OS_WINDOWS
 #  include "winverhelper_p.h"
 #endif // Q_OS_WINDOWS
+#include <array>
 #include <QtCore/qloggingcategory.h>
 #include <QtGui/qwindow.h>
 #include <QtGui/qscreen.h>
@@ -68,14 +69,15 @@ struct FONT_ICON
     quint32 Fallback = 0;
 };
 
-static const QHash<int, FONT_ICON> g_fontIconsTable = {
-    {static_cast<int>(SystemButtonType::Unknown), {0x0000, 0x0000}},
-    {static_cast<int>(SystemButtonType::WindowIcon), {0xE756, 0x0000}},
-    {static_cast<int>(SystemButtonType::Help), {0xE897, 0x0000}},
-    {static_cast<int>(SystemButtonType::Minimize), {0xE921, 0xE93E}},
-    {static_cast<int>(SystemButtonType::Maximize), {0xE922, 0xE93C}},
-    {static_cast<int>(SystemButtonType::Restore), {0xE923, 0xE93D}},
-    {static_cast<int>(SystemButtonType::Close), {0xE8BB, 0xE93B}}
+static constexpr const std::array<FONT_ICON, 7> g_fontIconsTable =
+{
+    FONT_ICON{ 0x0000, 0x0000 },
+    FONT_ICON{ 0xE756, 0x0000 },
+    FONT_ICON{ 0xE897, 0x0000 },
+    FONT_ICON{ 0xE921, 0xE93E },
+    FONT_ICON{ 0xE922, 0xE93C },
+    FONT_ICON{ 0xE923, 0xE93D },
+    FONT_ICON{ 0xE8BB, 0xE93B }
 };
 #endif // FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
 
@@ -171,12 +173,7 @@ QString Utils::getSystemButtonGlyph(const SystemButtonType button)
 #ifdef FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
     return {};
 #else // !FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
-    const auto index = static_cast<int>(button);
-    if (!g_fontIconsTable.contains(index)) {
-        WARNING << "FIXME: Add FONT_ICON value for button" << button;
-        return {};
-    }
-    const FONT_ICON icon = g_fontIconsTable.value(index);
+    const FONT_ICON &icon = g_fontIconsTable.at(static_cast<int>(button));
 #  ifdef Q_OS_WINDOWS
     // Windows 11: Segoe Fluent Icons (https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-fluent-icons-font)
     // Windows 10: Segoe MDL2 Assets (https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font)
@@ -231,8 +228,8 @@ void Utils::moveWindowToDesktopCenter(FramelessParamsConst params, const bool co
     }
     const QSize screenSize = (considerTaskBar ? screen->availableSize() : screen->size());
     const QPoint offset = (considerTaskBar ? screen->availableGeometry().topLeft() : QPoint(0, 0));
-    const int newX = std::round(qreal(screenSize.width() - windowSize.width()) / 2.0);
-    const int newY = std::round(qreal(screenSize.height() - windowSize.height()) / 2.0);
+    const int newX = std::round(qreal(screenSize.width() - windowSize.width()) / qreal(2));
+    const int newY = std::round(qreal(screenSize.height() - windowSize.height()) / qreal(2));
     params->setWindowPosition(QPoint(newX + offset.x(), newY + offset.y()));
 }
 
@@ -530,7 +527,7 @@ qreal Utils::getRelativeScaleFactor(const quint32 oldDpi, const quint32 newDpi)
     return qreal(newDpr / oldDpr);
 }
 
-QSize Utils::rescaleSize(const QSize &oldSize, const quint32 oldDpi, const quint32 newDpi)
+QSizeF Utils::rescaleSize(const QSizeF &oldSize, const quint32 oldDpi, const quint32 newDpi)
 {
     if (oldSize.isEmpty()) {
         return {};
@@ -545,14 +542,23 @@ QSize Utils::rescaleSize(const QSize &oldSize, const quint32 oldDpi, const quint
     if (qFuzzyCompare(scaleFactor, qreal(1))) {
         return oldSize;
     }
-    const QSizeF newSize = QSizeF(oldSize) * scaleFactor;
-    return newSize.toSize(); // The numbers will be rounded to the nearest integer.
+    return QSizeF(oldSize * scaleFactor);
+}
+
+QSize Utils::rescaleSize(const QSize &oldSize, const quint32 oldDpi, const quint32 newDpi)
+{
+    return rescaleSize(QSizeF(oldSize), oldDpi, newDpi).toSize();
+}
+
+bool Utils::isValidGeometry(const QRectF &rect)
+{
+    // The position of the rectangle is not relevant.
+    return ((rect.right() > rect.left()) && (rect.bottom() > rect.top()));
 }
 
 bool Utils::isValidGeometry(const QRect &rect)
 {
-    // The position of the rectangle is not relevant.
-    return ((rect.right() > rect.left()) && (rect.bottom() > rect.top()));
+    return isValidGeometry(QRectF(rect));
 }
 
 quint32 Utils::defaultScreenDpi()

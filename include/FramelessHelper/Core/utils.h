@@ -81,7 +81,9 @@ FRAMELESSHELPER_CORE_API void registerThemeChangeNotification();
 [[nodiscard]] FRAMELESSHELPER_CORE_API QPoint fromNativeGlobalPosition(const QWindow *window, const QPoint &point);
 [[nodiscard]] FRAMELESSHELPER_CORE_API int horizontalAdvance(const QFontMetrics &fm, const QString &str);
 [[nodiscard]] FRAMELESSHELPER_CORE_API qreal getRelativeScaleFactor(const quint32 oldDpi, const quint32 newDpi);
+[[nodiscard]] FRAMELESSHELPER_CORE_API QSizeF rescaleSize(const QSizeF &oldSize, const quint32 oldDpi, const quint32 newDpi);
 [[nodiscard]] FRAMELESSHELPER_CORE_API QSize rescaleSize(const QSize &oldSize, const quint32 oldDpi, const quint32 newDpi);
+[[nodiscard]] FRAMELESSHELPER_CORE_API bool isValidGeometry(const QRectF &rect);
 [[nodiscard]] FRAMELESSHELPER_CORE_API bool isValidGeometry(const QRect &rect);
 [[nodiscard]] FRAMELESSHELPER_CORE_API QColor getAccentColor();
 [[nodiscard]] FRAMELESSHELPER_CORE_API quint32 defaultScreenDpi();
@@ -143,6 +145,8 @@ FRAMELESSHELPER_CORE_API void bringWindowToFront(const WId windowId);
 [[nodiscard]] FRAMELESSHELPER_CORE_API QRect getWindowRestoreGeometry(const WId windowId);
 FRAMELESSHELPER_CORE_API void removeMicaWindow(const WId windowId);
 FRAMELESSHELPER_CORE_API void removeSysMenuHook(const WId windowId);
+FRAMELESSHELPER_CORE_API quint64 queryMouseButtonState();
+FRAMELESSHELPER_CORE_API bool isValidWindow(const WId windowId, const bool checkVisible, const bool checkTopLevel);
 #endif // Q_OS_WINDOWS
 
 #ifdef Q_OS_LINUX

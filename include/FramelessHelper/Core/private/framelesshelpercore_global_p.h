@@ -56,8 +56,8 @@ using SetSystemButtonStateCallback = std::function<void(const Global::SystemButt
 using GetWindowIdCallback = std::function<WId()>;
 using ShouldIgnoreMouseEventsCallback = std::function<bool(const QPoint &)>;
 using ShowSystemMenuCallback = std::function<void(const QPoint &)>;
-using SetPropertyCallback = std::function<void(const QByteArray &, const QVariant &)>;
-using GetPropertyCallback = std::function<QVariant(const QByteArray &, const QVariant &)>;
+using SetPropertyCallback = std::function<void(const char *, const QVariant &)>;
+using GetPropertyCallback = std::function<QVariant(const char *, const QVariant &)>;
 using SetCursorCallback = std::function<void(const QCursor &)>;
 using UnsetCursorCallback = std::function<void()>;
 using GetWidgetHandleCallback = std::function<QObject *()>;
@@ -103,3 +103,21 @@ FRAMELESSHELPER_CORE_API void registerInitializeHook(const InitializeHookCallbac
 FRAMELESSHELPER_CORE_API void registerUninitializeHook(const UninitializeHookCallback &cb);
 
 FRAMELESSHELPER_END_NAMESPACE
+
+#define DECLARE_SIZE_COMPARE_OPERATORS(Type1, Type2) \
+  [[maybe_unused]] [[nodiscard]] static inline constexpr bool operator>(const Type1 &lhs, const Type2 &rhs) noexcept \
+  { \
+      return ((lhs.width() * lhs.height()) > (rhs.width() * rhs.height())); \
+  } \
+  [[maybe_unused]] [[nodiscard]] static inline constexpr bool operator>=(const Type1 &lhs, const Type2 &rhs) noexcept \
+  { \
+      return (operator>(lhs, rhs) || operator==(lhs, rhs)); \
+  } \
+  [[maybe_unused]] [[nodiscard]] static inline constexpr bool operator<(const Type1 &lhs, const Type2 &rhs) noexcept \
+  { \
+      return (operator!=(lhs, rhs) && !operator>(lhs, rhs)); \
+  } \
+  [[maybe_unused]] [[nodiscard]] static inline constexpr bool operator<=(const Type1 &lhs, const Type2 &rhs) noexcept \
+  { \
+      return (operator<(lhs, rhs) || operator==(lhs, rhs)); \
+  }

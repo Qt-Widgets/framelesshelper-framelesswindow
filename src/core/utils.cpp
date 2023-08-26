@@ -34,8 +34,11 @@
 #include <QtGui/qguiapplication.h>
 #include <QtGui/qfontmetrics.h>
 #include <QtGui/qpalette.h>
+#include <QtGui/qsurface.h>
+#include <QtGui/qsurfaceformat.h>
 #ifndef FRAMELESSHELPER_CORE_NO_PRIVATE
 #  include <QtGui/private/qhighdpiscaling_p.h>
+#  include <QtGui/private/qwindow_p.h>
 #endif // FRAMELESSHELPER_CORE_NO_PRIVATE
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 5, 0))
 #  include <QtGui/qstylehints.h>
@@ -46,7 +49,7 @@
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
 
-static Q_LOGGING_CATEGORY(lcUtilsCommon, "wangwenx190.framelesshelper.core.utils.common")
+[[maybe_unused]] static Q_LOGGING_CATEGORY(lcUtilsCommon, "wangwenx190.framelesshelper.core.utils.common")
 
 #ifdef FRAMELESSHELPER_CORE_NO_DEBUG_OUTPUT
 #  define INFO QT_NO_QDEBUG_MACRO()
@@ -69,7 +72,7 @@ struct FONT_ICON
     quint32 Fallback = 0;
 };
 
-static constexpr const std::array<FONT_ICON, 7> g_fontIconsTable =
+static constexpr const std::array<FONT_ICON, static_cast<int>(SystemButtonType::Last) + 1> g_fontIconsTable =
 {
     FONT_ICON{ 0x0000, 0x0000 },
     FONT_ICON{ 0xE756, 0x0000 },
@@ -585,6 +588,46 @@ QColor Utils::getAccentColor()
     return QGuiApplication::palette().color(QPalette::Highlight);
 #  endif
 #endif // (QT_VERSION >= QT_VERSION_CHECK(6, 6, 0))
+}
+
+bool Utils::isWindowAccelerated(const QWindow *window)
+{
+    Q_ASSERT(window);
+    if (!window) {
+        return false;
+    }
+    switch (window->surfaceType()) {
+    case QSurface::RasterGLSurface:
+#ifdef FRAMELESSHELPER_CORE_NO_PRIVATE
+        return true;
+#else // !FRAMELESSHELPER_CORE_NO_PRIVATE
+        return qt_window_private(const_cast<QWindow *>(window))->compositing;
+#endif // FRAMELESSHELPER_CORE_NO_PRIVATE
+    case QSurface::OpenGLSurface:
+    case QSurface::VulkanSurface:
+    case QSurface::MetalSurface:
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 1, 0))
+    case QSurface::Direct3DSurface:
+#endif // (QT_VERSION >= QT_VERSION_CHECK(6, 1, 0))
+        return true;
+    default:
+        break;
+    }
+    return false;
+}
+
+bool Utils::isWindowTransparent(const QWindow *window)
+{
+    Q_ASSERT(window);
+    if (!window) {
+        return false;
+    }
+    // On most platforms, QWindow::format() will just return the
+    // user set format if there is one, otherwise it will return
+    // an invalid surface format. That means, most of the time
+    // the following check will not be useful. But since this is
+    // what the QPA code does, we just mirror it here.
+    return window->format().hasAlpha();
 }
 
 FRAMELESSHELPER_END_NAMESPACE

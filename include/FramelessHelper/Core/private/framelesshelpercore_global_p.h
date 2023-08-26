@@ -25,6 +25,7 @@
 #pragma once
 
 #include <FramelessHelper/Core/framelesshelpercore_global.h>
+#include <functional>
 
 QT_BEGIN_NAMESPACE
 class QScreen;
@@ -62,6 +63,7 @@ using SetCursorCallback = std::function<void(const QCursor &)>;
 using UnsetCursorCallback = std::function<void()>;
 using GetWidgetHandleCallback = std::function<QObject *()>;
 using ForceChildrenRepaintCallback = std::function<void(const int)>;
+using ResetQtGrabbedControlCallback = std::function<bool()>;
 
 struct SystemParameters
 {
@@ -92,6 +94,7 @@ struct SystemParameters
     UnsetCursorCallback unsetCursor = nullptr;
     GetWidgetHandleCallback getWidgetHandle = nullptr;
     ForceChildrenRepaintCallback forceChildrenRepaint = nullptr;
+    ResetQtGrabbedControlCallback resetQtGrabbedControl = nullptr;
 };
 
 using FramelessParams = SystemParameters *;

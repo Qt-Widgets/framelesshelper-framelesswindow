@@ -54,7 +54,7 @@ FRAMELESSHELPER_STRING_CONSTANT(DevicePixelRatio)
 Widget::Widget(QWidget *parent) : FramelessWidget(parent)
 {
     initialize();
-    startTimer(500);
+    startTimer(100);
     connect(FramelessManager::instance(), &FramelessManager::systemThemeChanged, this, &Widget::updateStyleSheet);
 }
 
@@ -102,7 +102,6 @@ void Widget::initialize()
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->addWidget(m_titleBar);
     mainLayout->addLayout(contentLayout);
-    setLayout(mainLayout);
     updateStyleSheet();
 
     m_cancelShortcut = new QShortcut(this);

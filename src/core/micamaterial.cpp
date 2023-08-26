@@ -29,6 +29,7 @@
 #include "framelessconfig_p.h"
 #include "framelesshelpercore_global_p.h"
 #include <optional>
+#include <memory>
 #include <QtCore/qsysinfo.h>
 #include <QtCore/qloggingcategory.h>
 #include <QtCore/qmutex.h>
@@ -45,7 +46,7 @@
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
 
-static Q_LOGGING_CATEGORY(lcMicaMaterial, "wangwenx190.framelesshelper.core.micamaterial")
+[[maybe_unused]] static Q_LOGGING_CATEGORY(lcMicaMaterial, "wangwenx190.framelesshelper.core.micamaterial")
 
 #ifdef FRAMELESSHELPER_CORE_NO_DEBUG_OUTPUT
 #  define INFO QT_NO_QDEBUG_MACRO()
@@ -85,15 +86,7 @@ struct ImageData
     QMutex mutex{};
 };
 
-struct MetricsData
-{
-    std::optional<QSize> monitorSize = std::nullopt;
-    std::optional<QSize> wallpaperSize = std::nullopt;
-    QMutex mutex{};
-};
-
 Q_GLOBAL_STATIC(ImageData, g_imageData)
-Q_GLOBAL_STATIC(MetricsData, g_metricsData)
 
 #ifndef FRAMELESSHELPER_CORE_NO_PRIVATE
 template<const int shift>
@@ -156,16 +149,12 @@ static inline void qt_blurrow(QImage &im, const int line, const int alpha)
 
     int zR = 0, zG = 0, zB = 0, zA = 0;
 
-#ifdef Q_CC_MSVC
-#  pragma warning(push)
-#  pragma warning(disable:4127) // false alarm.
-#endif // Q_CC_MSVC
+    QT_WARNING_PUSH
+    QT_WARNING_DISABLE_MSVC(4127) // false alarm.
     if (alphaOnly && (im.format() != QImage::Format_Indexed8)) {
         bptr += alphaIndex;
     }
-#ifdef Q_CC_MSVC
-#  pragma warning(pop)
-#endif // Q_CC_MSVC
+    QT_WARNING_POP
 
     const int stride = (im.depth() >> 3);
     const int im_width = im.width();
@@ -415,8 +404,10 @@ static inline void expblur(QImage &img, qreal radius, const bool improvedQuality
 
     if (p) {
         p->save();
-        p->setRenderHints(QPainter::Antialiasing |
-            QPainter::TextAntialiasing | QPainter::SmoothPixmapTransform);
+        // We need a blurry image anyway, we don't need high quality image processing.
+        p->setRenderHint(QPainter::Antialiasing, false);
+        p->setRenderHint(QPainter::TextAntialiasing, false);
+        p->setRenderHint(QPainter::SmoothPixmapTransform, false);
         p->scale(scale, scale);
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 2, 0))
         const QSize imageSize = blurImage.deviceIndependentSize().toSize();
@@ -501,20 +492,11 @@ public:
     ~WallpaperThread() override = default;
 
 Q_SIGNALS:
-    void imageUpdated(const Transform &);
+    void imageUpdated();
 
 protected:
     void run() override
     {
-        Transform transform = {};
-        const QSize monitorSize = MicaMaterialPrivate::monitorSize();
-        const QSize imageSize = MicaMaterialPrivate::wallpaperSize();
-        // If we scaled the image size, record the scale factor and we need it to map our clip rect
-        // to the real (unscaled) rect.
-        if (imageSize != monitorSize) {
-            transform.Horizontal = (qreal(imageSize.width()) / qreal(monitorSize.width()));
-            transform.Vertical = (qreal(imageSize.height()) / qreal(monitorSize.height()));
-        }
         const QString wallpaperFilePath = Utils::getWallpaperFilePath();
         if (wallpaperFilePath.isEmpty()) {
             WARNING << "Failed to retrieve the wallpaper file path.";
@@ -547,7 +529,8 @@ protected:
             return;
         }
         WallpaperAspectStyle aspectStyle = Utils::getWallpaperAspectStyle();
-        QImage buffer(imageSize, kDefaultImageFormat);
+        const QSize wallpaperSize = QGuiApplication::primaryScreen()->size();
+        QImage buffer(wallpaperSize, kDefaultImageFormat);
 #ifdef Q_OS_WINDOWS
         if (aspectStyle == WallpaperAspectStyle::Center) {
             buffer.fill(kDefaultBlackColor);
@@ -563,37 +546,43 @@ protected:
                 mode = Qt::KeepAspectRatio;
             }
             QSize newSize = image.size();
-            newSize.scale(imageSize, mode);
-            image = image.scaled(newSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+            newSize.scale(wallpaperSize, mode);
+            image = image.scaled(newSize);
         }
         static constexpr const QPoint desktopOriginPoint = {0, 0};
-        const QRect desktopRect = {desktopOriginPoint, imageSize};
+        const QRect desktopRect = {desktopOriginPoint, wallpaperSize};
         if (aspectStyle == WallpaperAspectStyle::Tile) {
             QPainter bufferPainter(&buffer);
-            bufferPainter.setRenderHints(QPainter::Antialiasing |
-                QPainter::TextAntialiasing | QPainter::SmoothPixmapTransform);
+            // Same as above, we prefer speed than quality here.
+            bufferPainter.setRenderHint(QPainter::Antialiasing, false);
+            bufferPainter.setRenderHint(QPainter::TextAntialiasing, false);
+            bufferPainter.setRenderHint(QPainter::SmoothPixmapTransform, false);
             bufferPainter.fillRect(desktopRect, QBrush(image));
         } else {
             QPainter bufferPainter(&buffer);
-            bufferPainter.setRenderHints(QPainter::Antialiasing |
-                QPainter::TextAntialiasing | QPainter::SmoothPixmapTransform);
+            // Same here.
+            bufferPainter.setRenderHint(QPainter::Antialiasing, false);
+            bufferPainter.setRenderHint(QPainter::TextAntialiasing, false);
+            bufferPainter.setRenderHint(QPainter::SmoothPixmapTransform, false);
             const QRect rect = alignedRect(Qt::LeftToRight, Qt::AlignCenter, image.size(), desktopRect);
             bufferPainter.drawImage(rect.topLeft(), image);
         }
         {
             const QMutexLocker locker(&g_imageData()->mutex);
-            g_imageData()->blurredWallpaper = QPixmap(imageSize);
+            g_imageData()->blurredWallpaper = QPixmap(wallpaperSize);
             g_imageData()->blurredWallpaper.fill(kDefaultTransparentColor);
             QPainter painter(&g_imageData()->blurredWallpaper);
-            painter.setRenderHints(QPainter::Antialiasing |
-                QPainter::TextAntialiasing | QPainter::SmoothPixmapTransform);
+            // Same here.
+            painter.setRenderHint(QPainter::Antialiasing, false);
+            painter.setRenderHint(QPainter::TextAntialiasing, false);
+            painter.setRenderHint(QPainter::SmoothPixmapTransform, false);
 #ifdef FRAMELESSHELPER_CORE_NO_PRIVATE
             painter.drawImage(desktopOriginPoint, buffer);
 #else // !FRAMELESSHELPER_CORE_NO_PRIVATE
-            qt_blurImage(&painter, buffer, kDefaultBlurRadius, true, false);
+            qt_blurImage(&painter, buffer, kDefaultBlurRadius, false, false);
 #endif // FRAMELESSHELPER_CORE_NO_PRIVATE
         }
-        Q_EMIT imageUpdated(transform);
+        Q_EMIT imageUpdated();
     }
 };
 
@@ -673,8 +662,10 @@ void MicaMaterialPrivate::updateMaterialBrush()
     fillColor.setAlphaF(0.9f);
     micaTexture.fill(fillColor);
     QPainter painter(&micaTexture);
-    painter.setRenderHints(QPainter::Antialiasing |
-        QPainter::TextAntialiasing | QPainter::SmoothPixmapTransform);
+    // Same as above. We need speed, not quality.
+    painter.setRenderHint(QPainter::Antialiasing, false);
+    painter.setRenderHint(QPainter::TextAntialiasing, false);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform, false);
     painter.setOpacity(tintOpacity);
     const QRect rect = {QPoint(0, 0), micaTexture.size()};
     painter.fillRect(rect, tintColor);
@@ -689,42 +680,9 @@ void MicaMaterialPrivate::updateMaterialBrush()
     }
 }
 
-void MicaMaterialPrivate::paint(QPainter *painter, const QRect &rect, const bool active)
-{
-    Q_ASSERT(painter);
-    if (!painter) {
-        return;
-    }
-    prepareGraphicsResources();
-    static constexpr const QPoint originPoint = {0, 0};
-    const QRect mappedRect = mapToWallpaper(rect);
-    painter->save();
-    painter->setRenderHints(QPainter::Antialiasing |
-        QPainter::TextAntialiasing | QPainter::SmoothPixmapTransform);
-    if (active) {
-        const QMutexLocker locker(&g_imageData()->mutex);
-        painter->drawPixmap(originPoint, g_imageData()->blurredWallpaper, mappedRect);
-    }
-    painter->setCompositionMode(QPainter::CompositionMode_SourceOver);
-    painter->setOpacity(qreal(1));
-    painter->fillRect(QRect{originPoint, mappedRect.size()}, [this, active]() -> QBrush {
-        if (!fallbackEnabled || active) {
-            return micaBrush;
-        }
-        if (fallbackColor.isValid()) {
-            return fallbackColor;
-        }
-        return systemFallbackColor();
-    }());
-    painter->restore();
-}
-
 void MicaMaterialPrivate::forceRebuildWallpaper()
 {
-    g_metricsData()->mutex.lock();
-    g_metricsData()->monitorSize = std::nullopt;
-    g_metricsData()->wallpaperSize = std::nullopt;
-    g_metricsData()->mutex.unlock();
+    wallpaperSize = QGuiApplication::primaryScreen()->size();
     maybeGenerateBlurredWallpaper(true);
 }
 
@@ -735,14 +693,15 @@ void MicaMaterialPrivate::initialize()
         g_threadData()->thread = std::make_unique<WallpaperThread>();
         qAddPostRoutine(threadCleaner);
     }
-    connect(g_threadData()->thread.get(), &WallpaperThread::imageUpdated, this, [this](const Transform &t){
-        transform = t;
+    connect(g_threadData()->thread.get(), &WallpaperThread::imageUpdated, this, [this](){
         if (initialized) {
             Q_Q(MicaMaterial);
             Q_EMIT q->shouldRedraw();
         }
     });
     g_threadData()->mutex.unlock();
+
+    wallpaperSize = QGuiApplication::primaryScreen()->size();
 
     tintColor = kDefaultTransparentColor;
     tintOpacity = kDefaultTintOpacity;
@@ -783,76 +742,24 @@ QColor MicaMaterialPrivate::systemFallbackColor()
     return ((FramelessManager::instance()->systemTheme() == SystemTheme::Dark) ? kDefaultFallbackColorDark : kDefaultFallbackColorLight);
 }
 
-QSize MicaMaterialPrivate::monitorSize()
-{
-    g_metricsData()->mutex.lock();
-    if (!g_metricsData()->monitorSize.has_value()) {
-        g_metricsData()->mutex.unlock();
-        const QScreen * const monitor = QGuiApplication::primaryScreen();
-        Q_ASSERT(monitor);
-        // We do not use the virtual desktop size here, instead, we only calculate the primary
-        // monitor size to simplify the logic, otherwise we will need a lot more code to take
-        // every case into account.
-        QSize size = (monitor ? monitor->size() : kMaximumPictureSize);
-        if (Q_UNLIKELY(size.isEmpty())) {
-            WARNING << "Failed to retrieve the monitor size. Using default size (1920x1080) instead ...";
-            size = kMaximumPictureSize;
-        }
-        g_metricsData()->mutex.lock();
-        g_metricsData()->monitorSize = size;
-        // Don't unlock the mutex here, we'll unlock it from outside.
-        DEBUG << "Primary monitor size:" << size * (monitor ? monitor->devicePixelRatio() : qreal(1));
-    }
-    const QSize result = g_metricsData()->monitorSize.value();
-    g_metricsData()->mutex.unlock();
-    return result;
-}
-
-QSize MicaMaterialPrivate::wallpaperSize()
-{
-    g_metricsData()->mutex.lock();
-    if (!g_metricsData()->wallpaperSize.has_value()) {
-        g_metricsData()->mutex.unlock();
-        const QSize desktopSize = monitorSize();
-        // It's observed that QImage consumes too much memory if the image resolution is very large.
-        const QSize size = (desktopSize > kMaximumPictureSize ? kMaximumPictureSize : desktopSize);
-        g_metricsData()->mutex.lock();
-        g_metricsData()->wallpaperSize = size;
-        // Don't unlock the mutex here, we'll unlock it from outside.
-        DEBUG << "Wallpaper size:" << size;
-    }
-    const QSize result = g_metricsData()->wallpaperSize.value();
-    g_metricsData()->mutex.unlock();
-    return result;
-}
-
 QPoint MicaMaterialPrivate::mapToWallpaper(const QPoint &pos) const
 {
     if (pos.isNull()) {
         return {};
     }
     QPointF result = pos;
-    if (!qFuzzyIsNull(transform.Horizontal) && (transform.Horizontal > qreal(0))
-            && !qFuzzyCompare(transform.Horizontal, qreal(1))) {
-        result.setX(result.x() * transform.Horizontal);
-    }
-    if (!qFuzzyIsNull(transform.Vertical) && (transform.Vertical > qreal(0))
-            && !qFuzzyCompare(transform.Vertical, qreal(1))) {
-        result.setY(result.y() * transform.Vertical);
-    }
-    const QSizeF imageSize = wallpaperSize();
     // Make sure the position is always inside the wallpaper rectangle.
     while (result.x() < qreal(0)) {
-        result.setX(result.x() + imageSize.width());
+        result.setX(result.x() + wallpaperSize.width());
     }
-    while (result.x() > imageSize.width()) {
-        result.setX(result.x() - imageSize.width());
+    while ((result.x() > wallpaperSize.width()) || qFuzzyCompare(result.x(), wallpaperSize.width())) {
+        result.setX(result.x() - wallpaperSize.width());
     }
     while (result.y() < qreal(0)) {
-        result.setY(result.y() + imageSize.height());
+        result.setY(result.y() + wallpaperSize.height());
     }
-    while (result.y() > imageSize.height()) {
-        result.setY(result.y() - imageSize.height());
+    while ((result.y() > wallpaperSize.height()) || qFuzzyCompare(result.y(), wallpaperSize.height())) {
+        result.setY(result.y() - wallpaperSize.height());
     }
     return result.toPoint();
 }
@@ -863,41 +770,25 @@ QSize MicaMaterialPrivate::mapToWallpaper(const QSize &size) const
         return {};
     }
     QSizeF result = size;
-    if (!qFuzzyIsNull(transform.Horizontal) && (transform.Horizontal > qreal(0))
-            && !qFuzzyCompare(transform.Horizontal, qreal(1))) {
-        result.setWidth(result.width() * transform.Horizontal);
-    }
-    if (!qFuzzyIsNull(transform.Vertical) && (transform.Vertical > qreal(0))
-            && !qFuzzyCompare(transform.Vertical, qreal(1))) {
-        result.setHeight(result.height() * transform.Vertical);
-    }
-    const QSizeF imageSize = wallpaperSize();
     // Make sure we don't get a size larger than the wallpaper's size.
-    if (result.width() > imageSize.width()) {
-        result.setWidth(imageSize.width());
+    if (result.width() > wallpaperSize.width()) {
+        result.setWidth(wallpaperSize.width());
     }
-    if (result.height() > imageSize.height()) {
-        result.setHeight(imageSize.height());
+    if (result.height() > wallpaperSize.height()) {
+        result.setHeight(wallpaperSize.height());
     }
     return result.toSize();
 }
 
 QRect MicaMaterialPrivate::mapToWallpaper(const QRect &rect) const
 {
-    const auto wallpaperRect = QRectF{ QPointF{ 0, 0 }, wallpaperSize() };
+    const auto wallpaperRect = QRectF{ QPointF{ 0, 0 }, wallpaperSize };
     const auto mappedRect = QRectF{ mapToWallpaper(rect.topLeft()), mapToWallpaper(rect.size()) };
     if (!Utils::isValidGeometry(mappedRect)) {
         WARNING << "The calculated mapped rectangle is not valid.";
         return wallpaperRect.toRect();
     }
-    // Make sure we don't get something outside of the wallpaper area.
-    const QRectF intersectedRect = wallpaperRect.intersected(mappedRect);
-    // OK, the two rectangles are not intersected, just draw the whole wallpaper.
-    if (!Utils::isValidGeometry(intersectedRect)) {
-        WARNING << "The mapped rectangle and the wallpaper rectangle are not intersected.";
-        return wallpaperRect.toRect();
-    }
-    return intersectedRect.toRect();
+    return mappedRect.toRect();
 }
 
 MicaMaterial::MicaMaterial(QObject *parent)
@@ -1007,8 +898,67 @@ void MicaMaterial::setFallbackEnabled(const bool value)
 
 void MicaMaterial::paint(QPainter *painter, const QRect &rect, const bool active)
 {
+    Q_ASSERT(painter);
+    if (!painter) {
+        return;
+    }
     Q_D(MicaMaterial);
-    d->paint(painter, rect, active);
+    d->prepareGraphicsResources();
+    static constexpr const auto originPoint = QPoint{ 0, 0 };
+    const QRect wallpaperRect = { originPoint, d->wallpaperSize };
+    const QRect mappedRect = d->mapToWallpaper(rect);
+    painter->save();
+    // Same as above. Speed is more important here.
+    painter->setRenderHint(QPainter::Antialiasing, false);
+    painter->setRenderHint(QPainter::TextAntialiasing, false);
+    painter->setRenderHint(QPainter::SmoothPixmapTransform, false);
+    if (active) {
+        const QRect intersectedRect = wallpaperRect.intersected(mappedRect);
+        g_imageData()->mutex.lock();
+        painter->drawPixmap(originPoint, g_imageData()->blurredWallpaper, intersectedRect);
+        g_imageData()->mutex.unlock();
+        if (intersectedRect != mappedRect) {
+            static constexpr const auto xOffset = QPoint{ 1, 0 };
+            if (mappedRect.y() + mappedRect.height() <= wallpaperRect.height()) {
+                const QRect outerRect = { intersectedRect.topRight() + xOffset, QSize{ mappedRect.width() - intersectedRect.width(), intersectedRect.height() } };
+                const QPoint outerRectOriginPoint = originPoint + QPoint{ intersectedRect.width(), 0 } + xOffset;
+                const QRect mappedOuterRect = d->mapToWallpaper(outerRect);
+                const QMutexLocker locker(&g_imageData()->mutex);
+                painter->drawPixmap(outerRectOriginPoint, g_imageData()->blurredWallpaper, mappedOuterRect);
+            } else {
+                static constexpr const auto yOffset = QPoint{ 0, 1 };
+                const QRect outerRectBottom = { intersectedRect.bottomLeft() + yOffset, QSize{ intersectedRect.width(), mappedRect.height() - intersectedRect.height() } };
+                const QPoint outerRectBottomOriginPoint = originPoint + QPoint{ 0, intersectedRect.height() } + yOffset;
+                const QRect mappedOuterRectBottom = d->mapToWallpaper(outerRectBottom);
+                g_imageData()->mutex.lock();
+                painter->drawPixmap(outerRectBottomOriginPoint, g_imageData()->blurredWallpaper, mappedOuterRectBottom);
+                g_imageData()->mutex.unlock();
+                if (mappedRect.x() + mappedRect.width() > wallpaperRect.width()) {
+                    const QRect outerRectRight = { intersectedRect.topRight() + xOffset, QSize{ mappedRect.width() - intersectedRect.width(), intersectedRect.height() } };
+                    const QPoint outerRectRightOriginPoint = originPoint + QPoint{ intersectedRect.width(), 0 } + xOffset;
+                    const QRect mappedOuterRectRight = d->mapToWallpaper(outerRectRight);
+                    const QRect outerRectCorner = { intersectedRect.bottomRight() + xOffset + yOffset, QSize{ outerRectRight.width(), outerRectBottom.height() } };
+                    const QPoint outerRectCornerOriginPoint = originPoint + QPoint{ intersectedRect.width(), intersectedRect.height() } + xOffset + yOffset;
+                    const QRect mappedOuterRectCorner = d->mapToWallpaper(outerRectCorner);
+                    const QMutexLocker locker(&g_imageData()->mutex);
+                    painter->drawPixmap(outerRectRightOriginPoint, g_imageData()->blurredWallpaper, mappedOuterRectRight);
+                    painter->drawPixmap(outerRectCornerOriginPoint, g_imageData()->blurredWallpaper, mappedOuterRectCorner);
+                }
+            }
+        }
+    }
+    painter->setCompositionMode(QPainter::CompositionMode_SourceOver);
+    painter->setOpacity(qreal(1));
+    painter->fillRect(QRect{originPoint, mappedRect.size()}, [d, active]() -> QBrush {
+        if (!d->fallbackEnabled || active) {
+            return d->micaBrush;
+        }
+        if (d->fallbackColor.isValid()) {
+            return d->fallbackColor;
+        }
+        return d->systemFallbackColor();
+    }());
+    painter->restore();
 }
 
 FRAMELESSHELPER_END_NAMESPACE

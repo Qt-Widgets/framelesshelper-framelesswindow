@@ -86,12 +86,336 @@
 
 #include <FramelessHelper/Core/framelesshelpercore_global.h>
 
+#ifndef WM_SIZEWAIT
+#  define WM_SIZEWAIT (0x0004)
+#endif
+
+#ifndef WM_SETVISIBLE
+#  define WM_SETVISIBLE (0x0009)
+#endif
+
+#ifndef WM_SYSTEMERROR
+#  define WM_SYSTEMERROR (0x0017)
+#endif
+
+#ifndef WM_CTLCOLOR
+#  define WM_CTLCOLOR (0x0019)
+#endif
+
+#ifndef WM_LOGOFF
+#  define WM_LOGOFF (0x0025)
+#endif
+
+#ifndef WM_ALTTABACTIVE
+#  define WM_ALTTABACTIVE (0x0029)
+#endif
+
+#ifndef WM_SHELLNOTIFY
+#  define WM_SHELLNOTIFY (0x0034)
+#endif
+
+#ifndef WM_ISACTIVEICON
+#  define WM_ISACTIVEICON (0x0035)
+#endif
+
+#ifndef WM_QUERYPARKICON
+#  define WM_QUERYPARKICON (0x0036)
+#endif
+
+#ifndef WM_WINHELP
+#  define WM_WINHELP (0x0038)
+#endif
+
+#ifndef WM_FULLSCREEN
+#  define WM_FULLSCREEN (0x003A)
+#endif
+
+#ifndef WM_CLIENTSHUTDOWN
+#  define WM_CLIENTSHUTDOWN (0x003B)
+#endif
+
+#ifndef WM_DDEMLEVENT
+#  define WM_DDEMLEVENT (0x003C)
+#endif
+
+#ifndef WM_TESTING
+#  define WM_TESTING (0x0040)
+#endif
+
+#ifndef WM_OTHERWINDOWCREATED
+#  define WM_OTHERWINDOWCREATED (0x0042)
+#endif
+
+#ifndef WM_OTHERWINDOWDESTROYED
+#  define WM_OTHERWINDOWDESTROYED (0x0043)
+#endif
+
+#ifndef WM_COPYGLOBALDATA
+#  define WM_COPYGLOBALDATA (0x0049)
+#endif
+
+#ifndef WM_KEYF1
+#  define WM_KEYF1 (0x004D)
+#endif
+
+#ifndef WM_ACCESS_WINDOW
+#  define WM_ACCESS_WINDOW (0x004F)
+#endif
+
+#ifndef WM_FINALDESTROY
+#  define WM_FINALDESTROY (0x0070)
+#endif
+
+#ifndef WM_MEASUREITEM_CLIENTDATA
+#  define WM_MEASUREITEM_CLIENTDATA (0x0071)
+#endif
+
+#ifndef WM_SYNCTASK
+#  define WM_SYNCTASK (0x0089)
+#endif
+
+#ifndef WM_KLUDGEMINRECT
+#  define WM_KLUDGEMINRECT (0x008B)
+#endif
+
+#ifndef WM_LPKDRAWSWITCHWND
+#  define WM_LPKDRAWSWITCHWND (0x008C)
+#endif
+
+#ifndef WM_UAHDESTROYWINDOW
+#  define WM_UAHDESTROYWINDOW (0x0090)
+#endif
+
+#ifndef WM_UAHDRAWMENU
+#  define WM_UAHDRAWMENU (0x0091)
+#endif
+
+#ifndef WM_UAHDRAWMENUITEM
+#  define WM_UAHDRAWMENUITEM (0x0092)
+#endif
+
+#ifndef WM_UAHINITMENU
+#  define WM_UAHINITMENU (0x0093)
+#endif
+
+#ifndef WM_UAHMEASUREMENUITEM
+#  define WM_UAHMEASUREMENUITEM (0x0094)
+#endif
+
+#ifndef WM_UAHNCPAINTMENUPOPUP
+#  define WM_UAHNCPAINTMENUPOPUP (0x0095)
+#endif
+
+#ifndef WM_UAHUPDATE
+#  define WM_UAHUPDATE (0x0096)
+#endif
+
 #ifndef WM_NCUAHDRAWCAPTION
 #  define WM_NCUAHDRAWCAPTION (0x00AE)
 #endif
 
 #ifndef WM_NCUAHDRAWFRAME
 #  define WM_NCUAHDRAWFRAME (0x00AF)
+#endif
+
+#ifndef WM_YOMICHAR
+#  define WM_YOMICHAR (0x0108)
+#endif
+
+#ifndef WM_CONVERTREQUEST
+#  define WM_CONVERTREQUEST (0x010A)
+#endif
+
+#ifndef WM_CONVERTRESULT
+#  define WM_CONVERTRESULT (0x010B)
+#endif
+
+#ifndef WM_INTERIM
+#  define WM_INTERIM (0x010C)
+#endif
+
+#ifndef WM_SYSTIMER
+#  define WM_SYSTIMER (0x0118)
+#endif
+
+#ifndef WM_GESTUREINPUT
+#  define WM_GESTUREINPUT (0x011B)
+#endif
+
+#ifndef WM_GESTURENOTIFIED
+#  define WM_GESTURENOTIFIED (0x011C)
+#endif
+
+#ifndef WM_LBTRACKPOINT
+#  define WM_LBTRACKPOINT (0x0131)
+#endif
+
+#ifndef WM_DROPOBJECT
+#  define WM_DROPOBJECT (0x022A)
+#endif
+
+#ifndef WM_QUERYDROPOBJECT
+#  define WM_QUERYDROPOBJECT (0x022B)
+#endif
+
+#ifndef WM_BEGINDRAG
+#  define WM_BEGINDRAG (0x022C)
+#endif
+
+#ifndef WM_DRAGLOOP
+#  define WM_DRAGLOOP (0x022D)
+#endif
+
+#ifndef WM_DRAGSELECT
+#  define WM_DRAGSELECT (0x022E)
+#endif
+
+#ifndef WM_DRAGMOVE
+#  define WM_DRAGMOVE (0x022F)
+#endif
+
+#ifndef WM_STOPINERTIA
+#  define WM_STOPINERTIA (0x023B)
+#endif
+
+#ifndef WM_ENDINERTIA
+#  define WM_ENDINERTIA (0x023C)
+#endif
+
+#ifndef WM_EDGYINERTIA
+#  define WM_EDGYINERTIA (0x023D)
+#endif
+
+#ifndef WM_VISIBILITYCHANGED
+#  define WM_VISIBILITYCHANGED (0x0270)
+#endif
+
+#ifndef WM_VIEWSTATECHANGED
+#  define WM_VIEWSTATECHANGED (0x0271)
+#endif
+
+#ifndef WM_UNREGISTER_WINDOW_SERVICES
+#  define WM_UNREGISTER_WINDOW_SERVICES (0x0272)
+#endif
+
+#ifndef WM_CONSOLIDATED
+#  define WM_CONSOLIDATED (0x0273)
+#endif
+
+#ifndef WM_IME_REPORT
+#  define WM_IME_REPORT (0x0280)
+#endif
+
+#ifndef WM_IME_SYSTEM
+#  define WM_IME_SYSTEM (0x0287)
+#endif
+
+#ifndef WM_POINTERDEVICEADDED
+#  define WM_POINTERDEVICEADDED (0x02C8)
+#endif
+
+#ifndef WM_POINTERDEVICEDELETED
+#  define WM_POINTERDEVICEDELETED (0x02C9)
+#endif
+
+#ifndef WM_FLICK
+#  define WM_FLICK (0x02CB)
+#endif
+
+#ifndef WM_FLICKINTERNAL
+#  define WM_FLICKINTERNAL (0x02CD)
+#endif
+
+#ifndef WM_BRIGHTNESSCHANGED
+#  define WM_BRIGHTNESSCHANGED (0x02CE)
+#endif
+
+#ifndef WM_SYSMENU
+#  define WM_SYSMENU (0x0313)
+#endif
+
+#ifndef WM_HOOKMSG
+#  define WM_HOOKMSG (0x0314)
+#endif
+
+#ifndef WM_EXITPROCESS
+#  define WM_EXITPROCESS (0x0315)
+#endif
+
+#ifndef WM_WAKETHREAD
+#  define WM_WAKETHREAD (0x0316)
+#endif
+
+#ifndef WM_UAHINIT
+#  define WM_UAHINIT (0x031B)
+#endif
+
+#ifndef WM_DESKTOPNOTIFY
+#  define WM_DESKTOPNOTIFY (0x031C)
+#endif
+
+#ifndef WM_DWMEXILEFRAME
+#  define WM_DWMEXILEFRAME (0x0322)
+#endif
+
+#ifndef WM_MAGNIFICATION_STARTED
+#  define WM_MAGNIFICATION_STARTED (0x0324)
+#endif
+
+#ifndef WM_MAGNIFICATION_ENDED
+#  define WM_MAGNIFICATION_ENDED (0x0325)
+#endif
+
+#ifndef WM_DWMTHUMBNAILSIZECHANGED
+#  define WM_DWMTHUMBNAILSIZECHANGED (0x0327)
+#endif
+
+#ifndef WM_MAGNIFICATION_OUTPUT
+#  define WM_MAGNIFICATION_OUTPUT (0x0328)
+#endif
+
+#ifndef WM_BSDRDATA
+#  define WM_BSDRDATA (0x0329)
+#endif
+
+#ifndef WM_DWMTRANSITIONSTATECHANGED
+#  define WM_DWMTRANSITIONSTATECHANGED (0x032A)
+#endif
+
+#ifndef WM_KEYBOARDCORRECTIONCALLOUT
+#  define WM_KEYBOARDCORRECTIONCALLOUT (0x032C)
+#endif
+
+#ifndef WM_KEYBOARDCORRECTIONACTION
+#  define WM_KEYBOARDCORRECTIONACTION (0x032D)
+#endif
+
+#ifndef WM_UIACTION
+#  define WM_UIACTION (0x032E)
+#endif
+
+#ifndef WM_ROUTED_UI_EVENT
+#  define WM_ROUTED_UI_EVENT (0x032F)
+#endif
+
+#ifndef WM_MEASURECONTROL
+#  define WM_MEASURECONTROL (0x0330)
+#endif
+
+#ifndef WM_GETACTIONTEXT
+#  define WM_GETACTIONTEXT (0x0331)
+#endif
+
+#ifndef WM_FORWARDKEYDOWN
+#  define WM_FORWARDKEYDOWN (0x0333)
+#endif
+
+#ifndef WM_FORWARDKEYUP
+#  define WM_FORWARDKEYUP (0x0334)
+#endif
+
+#ifndef WM_NOTIFYWOW
+#  define WM_NOTIFYWOW (0x0340)
 #endif
 
 #ifndef WM_DWMCOMPOSITIONCHANGED
@@ -122,6 +446,30 @@
 #  define ABM_GETAUTOHIDEBAREX (0x0000000b)
 #endif
 
+#ifndef MAKEWORD
+#  define MAKEWORD(a, b) ((WORD)(((BYTE)(((DWORD_PTR)(a)) & 0xff)) | ((WORD)((BYTE)(((DWORD_PTR)(b)) & 0xff))) << 8))
+#endif
+
+#ifndef MAKELONG
+#  define MAKELONG(a, b) ((LONG)(((WORD)(((DWORD_PTR)(a)) & 0xffff)) | ((DWORD)((WORD)(((DWORD_PTR)(b)) & 0xffff))) << 16))
+#endif
+
+#ifndef LOWORD
+#  define LOWORD(l) ((WORD)(((DWORD_PTR)(l)) & 0xffff))
+#endif
+
+#ifndef HIWORD
+#  define HIWORD(l) ((WORD)((((DWORD_PTR)(l)) >> 16) & 0xffff))
+#endif
+
+#ifndef LOBYTE
+#  define LOBYTE(w) ((BYTE)(((DWORD_PTR)(w)) & 0xff))
+#endif
+
+#ifndef HIBYTE
+#  define HIBYTE(w) ((BYTE)((((DWORD_PTR)(w)) >> 8) & 0xff))
+#endif
+
 #ifndef GET_X_LPARAM
 #  define GET_X_LPARAM(lp) (static_cast<int>(static_cast<short>(LOWORD(lp))))
 #endif
@@ -130,12 +478,48 @@
 #  define GET_Y_LPARAM(lp) (static_cast<int>(static_cast<short>(HIWORD(lp))))
 #endif
 
+#ifndef GET_KEYSTATE_WPARAM
+#  define GET_KEYSTATE_WPARAM(wParam) (LOWORD(wParam))
+#endif
+
+#ifndef GET_NCHITTEST_WPARAM
+#  define GET_NCHITTEST_WPARAM(wParam) (static_cast<short>(LOWORD(wParam)))
+#endif
+
+#ifndef GET_XBUTTON_WPARAM
+#  define GET_XBUTTON_WPARAM(wParam) (HIWORD(wParam))
+#endif
+
+#ifndef POINTSTOPOINT
+#  define POINTSTOPOINT(pt, pts) \
+   { \
+       (pt).x = static_cast<LONG>(static_cast<SHORT>(LOWORD(*(LONG*)&pts))); \
+       (pt).y = static_cast<LONG>(static_cast<SHORT>(HIWORD(*(LONG*)&pts))); \
+   }
+#endif
+
+#ifndef POINTTOPOINTS
+#  define POINTTOPOINTS(pt) (MAKELONG(static_cast<short>((pt).x), static_cast<short>((pt).y)))
+#endif
+
+#ifndef MAKEWPARAM
+#  define MAKEWPARAM(l, h) (static_cast<WPARAM>(static_cast<DWORD>(MAKELONG(l, h))))
+#endif
+
+#ifndef MAKELPARAM
+#  define MAKELPARAM(l, h) (static_cast<LPARAM>(static_cast<DWORD>(MAKELONG(l, h))))
+#endif
+
+#ifndef MAKELRESULT
+#  define MAKELRESULT(l, h) (static_cast<LRESULT>(static_cast<DWORD>(MAKELONG(l, h))))
+#endif
+
 #ifndef IsMinimized
-#  define IsMinimized(hwnd) (IsIconic(hwnd) != FALSE)
+#  define IsMinimized(hwnd) (::IsIconic(hwnd) != FALSE)
 #endif
 
 #ifndef IsMaximized
-#  define IsMaximized(hwnd) (IsZoomed(hwnd) != FALSE)
+#  define IsMaximized(hwnd) (::IsZoomed(hwnd) != FALSE)
 #endif
 
 #ifndef RECT_WIDTH

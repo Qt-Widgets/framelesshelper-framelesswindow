@@ -27,6 +27,8 @@
 #include "framelessmanager_p.h"
 #include "framelessconfig_p.h"
 #include "framelesshelpercore_global_p.h"
+#include <functional>
+#include <memory>
 #include <QtCore/qhash.h>
 #include <QtCore/qcoreapplication.h>
 #include <QtCore/qloggingcategory.h>
@@ -40,8 +42,8 @@
 #include <AppKit/AppKit.h>
 
 QT_BEGIN_NAMESPACE
-[[nodiscard]] Q_CORE_EXPORT bool qt_mac_applicationIsInDarkMode(); // Since 5.12
-[[nodiscard]] Q_GUI_EXPORT QColor qt_mac_toQColor(const NSColor *color); // Since 5.8
+[[nodiscard]] extern Q_CORE_EXPORT bool qt_mac_applicationIsInDarkMode(); // Since 5.12
+[[nodiscard]] extern Q_GUI_EXPORT QColor qt_mac_toQColor(const NSColor *color); // Since 5.8
 QT_END_NAMESPACE
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
@@ -65,7 +67,7 @@ FRAMELESSHELPER_END_NAMESPACE
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
 
-static Q_LOGGING_CATEGORY(lcUtilsMac, "wangwenx190.framelesshelper.core.utils.mac")
+[[maybe_unused]] static Q_LOGGING_CATEGORY(lcUtilsMac, "wangwenx190.framelesshelper.core.utils.mac")
 
 #ifdef FRAMELESSHELPER_CORE_NO_DEBUG_OUTPUT
 #  define INFO QT_NO_QDEBUG_MACRO()
@@ -467,11 +469,12 @@ private:
 
 #if 0
         const auto nswindow = reinterpret_cast<NSWindow *>(obj);
-        if (!instances.contains(nswindow)) {
+        const auto it = instances.find(nswindow);
+        if (it == instances.end()) {
             return;
         }
 
-        NSWindowProxy * const proxy = instances[nswindow];
+        NSWindowProxy * const proxy = it.value();
         if (event.type == NSEventTypeLeftMouseDown) {
             proxy->lastMouseDownEvent = event;
             QCoreApplication::processEvents();
@@ -510,10 +513,7 @@ private:
     static inline sendEventPtr oldSendEvent = nil;
 };
 
-struct MacUtilsData
-{
-    QHash<WId, NSWindowProxy *> hash = {};
-};
+using MacUtilsData = QHash<WId, NSWindowProxy *>;
 
 Q_GLOBAL_STATIC(MacUtilsData, g_macUtilsData);
 
@@ -533,17 +533,18 @@ Q_GLOBAL_STATIC(MacUtilsData, g_macUtilsData);
 
 static inline void cleanupProxy()
 {
-    if (g_macUtilsData()->hash.isEmpty()) {
+    if (g_macUtilsData()->isEmpty()) {
         return;
     }
-    for (auto &&proxy : std::as_const(g_macUtilsData()->hash)) {
+    const auto &data = *g_macUtilsData();
+    for (auto &&proxy : std::as_const(data)) {
         Q_ASSERT(proxy);
         if (!proxy) {
             continue;
         }
         delete proxy;
     }
-    g_macUtilsData()->hash.clear();
+    g_macUtilsData()->clear();
 }
 
 [[nodiscard]] static inline NSWindowProxy *ensureWindowProxy(const WId windowId)
@@ -552,7 +553,8 @@ static inline void cleanupProxy()
     if (!windowId) {
         return nil;
     }
-    if (!g_macUtilsData()->hash.contains(windowId)) {
+    auto it = g_macUtilsData()->find(windowId);
+    if (it == g_macUtilsData()->end()) {
         QWindow * const qwindow = Utils::findWindow(windowId);
         Q_ASSERT(qwindow);
         if (!qwindow) {
@@ -564,14 +566,14 @@ static inline void cleanupProxy()
             return nil;
         }
         const auto proxy = new NSWindowProxy(qwindow, nswindow);
-        g_macUtilsData()->hash.insert(windowId, proxy);
+        it = g_macUtilsData()->insert(windowId, proxy);
     }
     static bool cleanerInstalled = false;
     if (!cleanerInstalled) {
         cleanerInstalled = true;
         qAddPostRoutine(cleanupProxy);
     }
-    return g_macUtilsData()->hash.value(windowId);
+    return it.value();
 }
 
 void Utils::setSystemTitleBarVisible(const WId windowId, const bool visible)
@@ -584,20 +586,20 @@ void Utils::setSystemTitleBarVisible(const WId windowId, const bool visible)
     proxy->setSystemTitleBarVisible(visible);
 }
 
-void Utils::startSystemMove(QWindow *window, const QPoint &globalPos)
+bool Utils::startSystemMove(QWindow *window, const QPoint &globalPos)
 {
     Q_ASSERT(window);
     if (!window) {
-        return;
+        return false;
     }
 #if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
     Q_UNUSED(globalPos);
-    window->startSystemMove();
+    return window->startSystemMove();
 #else
     const NSWindow * const nswindow = mac_getNSWindow(window->winId());
     Q_ASSERT(nswindow);
     if (!nswindow) {
-        return;
+        return false;
     }
     const CGEventRef clickDown = CGEventCreateMouseEvent(NULL, kCGEventLeftMouseDown,
                          CGPointMake(globalPos.x(), globalPos.y()), kCGMouseButtonLeft);
@@ -605,29 +607,31 @@ void Utils::startSystemMove(QWindow *window, const QPoint &globalPos)
     Q_ASSERT(nsevent);
     if (!nsevent) {
         CFRelease(clickDown);
-        return;
+        return false;
     }
     [nswindow performWindowDragWithEvent:nsevent];
     CFRelease(clickDown);
+    return true;
 #endif
 }
 
-void Utils::startSystemResize(QWindow *window, const Qt::Edges edges, const QPoint &globalPos)
+bool Utils::startSystemResize(QWindow *window, const Qt::Edges edges, const QPoint &globalPos)
 {
     Q_ASSERT(window);
     if (!window) {
-        return;
+        return false;
     }
     if (edges == Qt::Edges{}) {
-        return;
+        return false;
     }
 #if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
     Q_UNUSED(globalPos);
     // Actually Qt doesn't implement this function, it will do nothing and always returns false.
-    window->startSystemResize(edges);
+    return window->startSystemResize(edges);
 #else
     // ### TODO
     Q_UNUSED(globalPos);
+    return false;
 #endif
 }
 
@@ -721,10 +725,11 @@ bool Utils::isBlurBehindWindowSupported()
     return result;
 }
 
-void Utils::registerThemeChangeNotification()
+bool Utils::registerThemeChangeNotification()
 {
     volatile static MacOSThemeObserver observer;
     Q_UNUSED(observer);
+    return true;
 }
 
 void Utils::removeWindowProxy(const WId windowId)
@@ -733,15 +738,16 @@ void Utils::removeWindowProxy(const WId windowId)
     if (!windowId) {
         return;
     }
-    if (!g_macUtilsData()->hash.contains(windowId)) {
+    const auto it = g_macUtilsData()->constFind(windowId);
+    if (it == g_macUtilsData()->constEnd()) {
         return;
     }
-    if (const auto proxy = g_macUtilsData()->hash.value(windowId)) {
+    if (const auto proxy = it.value()) {
         // We'll restore everything to default in the destructor,
         // so no need to do it manually here.
         delete proxy;
     }
-    g_macUtilsData()->hash.remove(windowId);
+    g_macUtilsData()->erase(it);
 }
 
 QColor Utils::getFrameBorderColor(const bool active)

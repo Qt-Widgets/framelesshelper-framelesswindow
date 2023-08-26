@@ -28,6 +28,7 @@
 #include "framelessmanager_p.h"
 #include <cstring> // for std::memcpy
 #include <QtCore/qloggingcategory.h>
+#include <QtGui/qevent.h>
 #include <QtGui/qwindow.h>
 #include <QtGui/qscreen.h>
 #include <QtGui/qpalette.h>
@@ -54,7 +55,7 @@
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
 
-static Q_LOGGING_CATEGORY(lcUtilsLinux, "wangwenx190.framelesshelper.core.utils.linux")
+[[maybe_unused]] static Q_LOGGING_CATEGORY(lcUtilsLinux, "wangwenx190.framelesshelper.core.utils.linux")
 
 #ifdef FRAMELESSHELPER_CORE_NO_DEBUG_OUTPUT
 #  define INFO QT_NO_QDEBUG_MACRO()
@@ -118,6 +119,26 @@ extern QString gtkSettings(const gchar *);
         return _NET_WM_MOVERESIZE_SIZE_RIGHT;
     }
     return _NET_WM_MOVERESIZE_CANCEL;
+}
+
+[[maybe_unused]] static inline void generateMouseReleaseEvent(QWindow *window, const QPoint &globalPos)
+{
+    Q_ASSERT(window);
+    if (!window) {
+        return;
+    }
+    // https://bugreports.qt.io/browse/QTBUG-102488
+    const QPoint localPos = window->mapFromGlobal(globalPos);
+    const QPoint scenePos = localPos; // windowPos in Qt5.
+    const auto event = std::make_unique<QMouseEvent>(
+        QEvent::MouseButtonRelease,
+        localPos,
+        scenePos,
+        globalPos,
+        Qt::LeftButton,
+        QGuiApplication::mouseButtons() ^ Qt::LeftButton,
+        QGuiApplication::keyboardModifiers());
+    QGuiApplication::sendEvent(window, event.get());
 }
 
 QScreen *Utils::x11_findScreenForVirtualDesktop(const int virtualDesktopNumber)
@@ -344,37 +365,41 @@ xcb_connection_t *Utils::x11_connection()
 #endif // FRAMELESSHELPER_HAS_X11EXTRAS
 }
 
-void Utils::startSystemMove(QWindow *window, const QPoint &globalPos)
+bool Utils::startSystemMove(QWindow *window, const QPoint &globalPos)
 {
     Q_ASSERT(window);
     if (!window) {
-        return;
+        return false;
     }
 #if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
-    Q_UNUSED(globalPos);
     window->startSystemMove();
+    generateMouseReleaseEvent(window, globalPos);
+    return true;
 #else // (QT_VERSION < QT_VERSION_CHECK(5, 15, 0))
     const QPoint nativeGlobalPos = Utils::toNativeGlobalPosition(window, globalPos);
     sendMoveResizeMessage(window->winId(), _NET_WM_MOVERESIZE_MOVE, nativeGlobalPos);
+    return true;
 #endif // (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
 }
 
-void Utils::startSystemResize(QWindow *window, const Qt::Edges edges, const QPoint &globalPos)
+bool Utils::startSystemResize(QWindow *window, const Qt::Edges edges, const QPoint &globalPos)
 {
     Q_ASSERT(window);
     if (!window) {
-        return;
+        return false;
     }
     if (edges == Qt::Edges{}) {
-        return;
+        return false;
     }
 #if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
-    Q_UNUSED(globalPos);
     window->startSystemResize(edges);
+    generateMouseReleaseEvent(window, globalPos);
+    return true;
 #else // (QT_VERSION < QT_VERSION_CHECK(5, 15, 0))
     const QPoint nativeGlobalPos = Utils::toNativeGlobalPosition(window, globalPos);
     const int netWmOperation = qtEdgesToWmMoveOrResizeOperation(edges);
     sendMoveResizeMessage(window->winId(), netWmOperation, nativeGlobalPos);
+    return true;
 #endif // (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
 }
 
@@ -558,15 +583,16 @@ static inline void themeChangeNotificationCallback()
     }
 }
 
-void Utils::registerThemeChangeNotification()
+bool Utils::registerThemeChangeNotification()
 {
     GtkSettings * const settings = gtk_settings_get_default();
     Q_ASSERT(settings);
     if (!settings) {
-        return;
+        return false;
     }
     g_signal_connect(settings, "notify::gtk-application-prefer-dark-theme", themeChangeNotificationCallback, nullptr);
     g_signal_connect(settings, "notify::gtk-theme-name", themeChangeNotificationCallback, nullptr);
+    return true;
 }
 
 QColor Utils::getFrameBorderColor(const bool active)

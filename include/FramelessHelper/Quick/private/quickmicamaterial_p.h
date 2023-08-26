@@ -26,15 +26,10 @@
 
 #include <FramelessHelper/Quick/framelesshelperquick_global.h>
 
-QT_BEGIN_NAMESPACE
-class QQuickRectangle;
-QT_END_NAMESPACE
-
 FRAMELESSHELPER_BEGIN_NAMESPACE
 
 class MicaMaterial;
 class QuickMicaMaterial;
-class WallpaperImageNode;
 
 class FRAMELESSHELPER_QUICK_API QuickMicaMaterialPrivate : public QObject
 {
@@ -49,26 +44,15 @@ public:
     Q_NODISCARD static QuickMicaMaterialPrivate *get(QuickMicaMaterial *q);
     Q_NODISCARD static const QuickMicaMaterialPrivate *get(const QuickMicaMaterial *q);
 
-public Q_SLOTS:
-    void rebindWindow();
-    void forceRegenerateWallpaperImageCache();
-    void appendNode(WallpaperImageNode *node);
-    void removeNode(WallpaperImageNode *node);
-    void updateFallbackColor();
+    Q_SLOT void rebindWindow();
 
-private:
     void initialize();
 
-private:
-    friend class WallpaperImageNode;
-
     QuickMicaMaterial *q_ptr = nullptr;
-    QMetaObject::Connection m_rootWindowXChangedConnection = {};
-    QMetaObject::Connection m_rootWindowYChangedConnection = {};
-    QMetaObject::Connection m_rootWindowActiveChangedConnection = {};
-    QList<QPointer<WallpaperImageNode>> m_nodes = {};
-    QQuickRectangle *m_fallbackColorItem = nullptr;
-    MicaMaterial *m_micaMaterial = nullptr;
+    QMetaObject::Connection rootWindowXChangedConnection = {};
+    QMetaObject::Connection rootWindowYChangedConnection = {};
+    QMetaObject::Connection rootWindowActiveChangedConnection = {};
+    MicaMaterial *micaMaterial = nullptr;
 };
 
 FRAMELESSHELPER_END_NAMESPACE

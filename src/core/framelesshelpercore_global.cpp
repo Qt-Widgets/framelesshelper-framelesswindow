@@ -30,30 +30,6 @@
 #include <QtCore/qcoreapplication.h>
 #include <QtCore/qloggingcategory.h>
 
-#ifndef COMPILER_STRING
-#  ifdef Q_CC_CLANG // Must be before GNU, because Clang claims to be GNU too.
-#    define COMPILER_STRING __VERSION__ // Already includes the compiler's name.
-#  elif defined(Q_CC_GHS)
-#    define COMPILER_STRING "GHS " QT_STRINGIFY(__GHS_VERSION_NUMBER)
-#  elif defined(Q_CC_GNU)
-#    define COMPILER_STRING "GCC " __VERSION__
-#  elif defined(Q_CC_MSVC)
-#    if (_MSC_VER < 1910)
-#      define COMPILER_STRING "MSVC 2015"
-#    elif (_MSC_VER < 1917)
-#      define COMPILER_STRING "MSVC 2017"
-#    elif (_MSC_VER < 1930)
-#      define COMPILER_STRING "MSVC 2019"
-#    elif (_MSC_VER < 2000)
-#      define COMPILER_STRING "MSVC 2022"
-#    else
-#      define COMPILER_STRING "MSVC version " QT_STRINGIFY(_MSC_VER)
-#    endif
-#  else
-#    define COMPILER_STRING "UNKNOWN"
-#  endif
-#endif
-
 #ifndef QT_NO_DEBUG_STREAM
 QT_BEGIN_NAMESPACE
 QDebug operator<<(QDebug d, const FRAMELESSHELPER_PREPEND_NAMESPACE(VersionNumber) &ver)
@@ -70,16 +46,26 @@ QDebug operator<<(QDebug d, const FRAMELESSHELPER_PREPEND_NAMESPACE(VersionNumbe
 QDebug operator<<(QDebug d, const FRAMELESSHELPER_PREPEND_NAMESPACE(Global)::VersionInfo &ver)
 {
     const QDebugStateSaver saver(d);
-    int major = 0, minor = 0, patch = 0;
-    FRAMELESSHELPER_EXTRACT_VERSION(ver.version, major, minor, patch)
-    const auto ver_num = FRAMELESSHELPER_PREPEND_NAMESPACE(VersionNumber){major, minor, patch};
+    unsigned long major = 0, minor = 0, patch = 0;
+    FRAMELESSHELPER_EXTRACT_VERSION(ver.version.num, major, minor, patch)
+    const auto ver_num = FRAMELESSHELPER_PREPEND_NAMESPACE(VersionNumber){ major, minor, patch };
     d.nospace().noquote() << "VersionInfo("
                           << "version number: " << ver_num << ", "
-                          << "version string: " << ver.version_str << ", "
-                          << "commit hash: " << ver.commit << ", "
-                          << "compiler: " << ver.compiler << ", "
-                          << "debug build: " << ver.isDebug << ", "
-                          << "static build: " << ver.isStatic << ')';
+                          << "version string: " << ver.version.str << ", "
+                          << "commit hash: " << ver.commit.hash << ", "
+                          << "commit subject: " << ver.commit.subject << ", "
+                          << "commit author: " << ver.commit.author << ", "
+                          << "commit date time: " << ver.commit.datetime << ", "
+                          << "commit branch: " << ver.commit.branch << ", "
+                          << "compiler name: " << ver.compiler.name << ", "
+                          << "compiler version: " << ver.compiler.version << ", "
+                          << "compiler vendor: " << ver.compiler.vendor << ", "
+                          << "cmake version: " << ver.build.cmake_version << ", "
+                          << "cmake configure date time: " << ver.build.configure_datetime << ", "
+                          << "cmake generator: " << ver.build.generator << ", "
+                          << "architecture: " << ver.build.architecture << ", "
+                          << "debug build: " << ver.build.is_debug << ", "
+                          << "static build: " << ver.build.is_static << ')';
     return d;
 }
 
@@ -96,31 +82,30 @@ QDebug operator<<(QDebug d, const FRAMELESSHELPER_PREPEND_NAMESPACE(Global)::Dpi
 QT_END_NAMESPACE
 #endif // QT_NO_DEBUG_STREAM
 
-#ifndef FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
+#if FRAMELESSHELPER_CONFIG(bundle_resource)
 // The "Q_INIT_RESOURCE()" macro can't be used within a namespace,
 // so we wrap it into a separate function outside of the namespace and
 // then call it instead inside the namespace, that's also the recommended
 // workaround provided by Qt's official documentation.
-void framelesshelpercore_initResource()
+void FramelessHelperCoreInitResource()
 {
     Q_INIT_RESOURCE(framelesshelpercore);
 }
-#endif // FRAMELESSHELPER_CORE_NO_BUNDLE_RESOURCE
+#endif // FRAMELESSHELPER_CONFIG(bundle_resource)
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
 
+#if FRAMELESSHELPER_CONFIG(debug_output)
 [[maybe_unused]] static Q_LOGGING_CATEGORY(lcCoreGlobal, "wangwenx190.framelesshelper.core.global")
-
-#ifdef FRAMELESSHELPER_CORE_NO_DEBUG_OUTPUT
-#  define INFO QT_NO_QDEBUG_MACRO()
-#  define DEBUG QT_NO_QDEBUG_MACRO()
-#  define WARNING QT_NO_QDEBUG_MACRO()
-#  define CRITICAL QT_NO_QDEBUG_MACRO()
-#else
 #  define INFO qCInfo(lcCoreGlobal)
 #  define DEBUG qCDebug(lcCoreGlobal)
 #  define WARNING qCWarning(lcCoreGlobal)
 #  define CRITICAL qCCritical(lcCoreGlobal)
+#else
+#  define INFO QT_NO_QDEBUG_MACRO()
+#  define DEBUG QT_NO_QDEBUG_MACRO()
+#  define WARNING QT_NO_QDEBUG_MACRO()
+#  define CRITICAL QT_NO_QDEBUG_MACRO()
 #endif
 
 using namespace Global;
@@ -129,22 +114,7 @@ using namespace Global;
 static_assert(std::size(WindowsVersions) == (static_cast<int>(WindowsVersion::Latest) + 1));
 #endif
 
-void registerInitializeHook(const InitializeHookCallback &cb)
-{
-    Q_UNUSED(cb);
-    WARNING << "registerInitializeHook: This function is deprecated and will be removed in a future version. Please consider using Qt's official Q_COREAPP_STARTUP_FUNCTION() macro instead.";
-}
-
-void registerUninitializeHook(const UninitializeHookCallback &cb)
-{
-    Q_UNUSED(cb);
-    WARNING << "registerUninitializeHook: This function is deprecated and will be removed in a future version. Please consider using Qt's official qAddPostRoutine() function instead.";
-}
-
-namespace FramelessHelper::Core
-{
-
-void initialize()
+void FramelessHelperCoreInitialize()
 {
     static bool inited = false;
     if (inited) {
@@ -152,9 +122,9 @@ void initialize()
     }
     inited = true;
 
-    outputLogo();
+    FramelessHelperPrintLogo();
 
-#ifdef Q_OS_LINUX
+#if (defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID))
     // Qt's Wayland experience is not good, so we force the XCB backend here.
     // TODO: Remove this hack once Qt's Wayland implementation is good enough.
     // We are setting the preferred QPA backend, so we have to set it early
@@ -199,7 +169,7 @@ void initialize()
 #endif
 }
 
-void uninitialize()
+void FramelessHelperCoreUninitialize()
 {
     static bool uninited = false;
     if (uninited) {
@@ -208,38 +178,44 @@ void uninitialize()
     uninited = true;
 }
 
-VersionInfo version()
+VersionInfo FramelessHelperVersion()
 {
     static const auto result = []() -> VersionInfo {
-        const auto _compiler = []() -> const char * { return COMPILER_STRING; }();
-        const auto _debug = []() -> bool {
+        VersionInfo vi = {};
+        vi.version.num = FRAMELESSHELPER_VERSION;
+        vi.version.str = FRAMELESSHELPER_VERSION_STR;
+        vi.commit.hash = FRAMELESSHELPER_COMMIT_HASH_STR;
+        vi.commit.subject = FRAMELESSHELPER_COMMIT_SUBJECT_STR;
+        vi.commit.author = FRAMELESSHELPER_COMMIT_AUTHOR_STR;
+        vi.commit.datetime = FRAMELESSHELPER_COMMIT_DATETIME_STR;
+        vi.commit.branch = FRAMELESSHELPER_COMMIT_BRANCH_STR;
+        vi.compiler.name = FRAMELESSHELPER_COMPILER_NAME_STR;
+        vi.compiler.version = FRAMELESSHELPER_COMPILER_VERSION_STR;
+        vi.compiler.vendor = FRAMELESSHELPER_COMPILER_VENDOR_STR;
+        vi.build.cmake_version = FRAMELESSHELPER_CMAKE_VERSION_STR;
+        vi.build.configure_datetime = FRAMELESSHELPER_BUILD_DATETIME_STR;
+        vi.build.generator = FRAMELESSHELPER_CMAKE_GENERATOR_STR;
+        vi.build.architecture = FRAMELESSHELPER_ARCHITECTURE_STR;
+        vi.build.is_debug = []() -> bool {
 #ifdef _DEBUG
             return true;
 #else
             return false;
 #endif
         }();
-        const auto _static = []() -> bool {
-#ifdef FRAMELESSHELPER_CORE_STATIC
+        vi.build.is_static = []() -> bool {
+#if FRAMELESSHELPER_CONFIG(static_build)
             return true;
 #else
             return false;
 #endif
         }();
-        return VersionInfo{
-            /* .version */ FRAMELESSHELPER_VERSION,
-            /* .version_str */ FRAMELESSHELPER_VERSION_STR,
-            /* .commit */ FRAMELESSHELPER_COMMIT_STR,
-            /* .compileDateTime */ FRAMELESSHELPER_COMPILE_DATETIME_STR,
-            /* .compiler */ _compiler,
-            /* .isDebug */ _debug,
-            /* .isStatic */ _static
-        };
+        return vi;
     }();
     return result;
 }
 
-void setApplicationOSThemeAware()
+void FramelessHelperEnableThemeAware()
 {
     static bool set = false;
     if (set) {
@@ -257,7 +233,7 @@ void setApplicationOSThemeAware()
 #  endif
 #endif
 
-#if ((defined(Q_OS_LINUX) && (QT_VERSION < QT_VERSION_CHECK(6, 4, 0))) || \
+#if ((defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID) && (QT_VERSION < QT_VERSION_CHECK(6, 4, 0))) || \
     (defined(Q_OS_MACOS) && (QT_VERSION < QT_VERSION_CHECK(5, 12, 0))))
     // Linux: Qt 6.4 gained the ability to detect system theme change.
     // macOS: Qt 5.12.
@@ -265,23 +241,23 @@ void setApplicationOSThemeAware()
 #endif
 }
 
-void outputLogo()
+void FramelessHelperPrintLogo()
 {
     static const bool noLogo = (qEnvironmentVariableIntValue("FRAMELESSHELPER_NO_LOGO") != 0);
     if (noLogo) {
         return;
     }
-    const VersionInfo &ver = version();
+    const VersionInfo ver = FramelessHelperVersion();
     QString message = {};
     QTextStream stream(&message, QIODevice::WriteOnly);
-    stream << "FramelessHelper (" << (ver.isStatic ? "static" : "shared")
-           << ", " << (ver.isDebug ? "debug" : "release") << ") version "
-           << ver.version_str << ", author wangwenx190 (Yuhang Zhao)."
-           << " Built by " << ver.compiler << " from " << ver.commit
-           << " on " << ver.compileDateTime << " (UTC).";
+    stream << "FramelessHelper (" << (ver.build.is_static ? "static" : "shared")
+           << ", " << (ver.build.is_debug ? "debug" : "release")
+           << ver.build.architecture << ") version " << ver.version.str
+           << ", author wangwenx190 (Yuhang Zhao, 2546789017@qq.com)."
+           << " Built by " << ver.compiler.name << ver.compiler.version
+           << " from " << ver.commit.hash << " on "
+           << ver.build.configure_datetime << " (UTC).";
     INFO.nospace().noquote() << message;
-}
-
 }
 
 FRAMELESSHELPER_END_NAMESPACE
